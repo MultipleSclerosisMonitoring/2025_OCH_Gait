@@ -21,7 +21,40 @@ def build_parser():
     p.add_argument('--export', metavar='CSV', help='Guardar los datos simulados a CSV')
     p.add_argument('--features', metavar='CSV', help='Guardar features (append) a CSV')
 
+    # Paso 5: Espectrograma y etiquetas (Walk/No Walk)
+    p.add_argument('--spectrogram', metavar='PNG', help='Guardar espectrograma del módulo de aceleración')
+    p.add_argument('--label', metavar='TEXT', help='Añadir etiqueta (p.ej. Walk o No Walk)')
+    p.add_argument('--labels_csv', default='labels.csv', help='CSV de etiquetas (por defecto labels.csv)')
     return p
+
+# Paso 5: Espectrograma y etiquetas (Walk/No Walk)
+import json
+import pandas as pd
+import datetime
+import os
+import matplotlib.pyplot as plt
+
+def save_spectrogram(df: pd.DataFrame, out_png: str, fs: float):
+    acc_mag = np.sqrt(df['ax']**2 + df['ay']**2 + df['az']**2).values
+    plt.figure(figsize=(9,4))
+    plt.specgram(acc_mag, NFFT=256, Fs=fs, noverlap=128)
+    plt.xlabel('Tiempo [s]'); 
+    plt.ylabel('Frecuencia [Hz]'); 
+    plt.title('Espectrograma |a|')
+    plt.tight_layout(); 
+    plt.savefig(out_png, dpi=150); 
+    plt.close()
+def append_label(labels_csv: str, token: str, side:str, start:datetime, end:datetime, label:str):
+    row = {
+        'token': token, 
+        'side': side,
+        'from:time_utc': start.isoformat(),
+        'until_utc': end.isoformat(),
+        'label': label
+    }
+    mode = 'a' if os.path.exists(labels_csv) else 'w'
+    header = not os.path.exists(labels_csv)
+    pd.DataFrame([row]).to_csv(labels_csv, mode=mode, header=header, index=False)
 
 # Paso 1: Parsear fechas bien (UTC si viene con Z)
 
@@ -50,7 +83,7 @@ def parse_time(s:str) -> datetime:
 import math
 from dataclasses import dataclass
 import numpy as np 
-import pandas as pd
+# import pandas as pd
 
 @dataclass
 class MockQuery:
@@ -121,8 +154,7 @@ def main ():
     q = MockQuery(args.token, args.side, start, end, args.fs)
     df = q.simulate()
 
-# Paso 4: Exportar CSV  y guardar features a fihchero
-    import os
+# Paso 4: Exportar CSV  y guardar features a fihchero (import os pero lo necesito para paso 5 asique ya lo he puesto arriba)
     if args.export:
         df.to_csv(args.export, index=False)
         if args.verbose:
@@ -146,9 +178,15 @@ def main ():
         print("[i] Args OK:", args)
         print(f"[i] Ventana UTC: {start.isoformat()} -> {end.isoformat()}")
     
-    import json
-    feats = compute_features(df)
-    print(json.dumps(feats, ensure_ascii=False, indent=2))
+    # Paso 5: Espectrograma y etiquetas
+    if args.spectrogram:
+        save_spectrogram(df, args.spectrogram, fs=args.fs)
+        if args.verbose:
+            print(f"[i] Espectrograma guardado en: {args.spectrogram}")
+    if args.label:
+        append_label(args.labels_csv, args.token, args.side, start, end, args.label)
+        if args.verbose:
+            print(f"[i] Etiqueta añadida a {args.labels_csv}: {args.label}")
     
     return 0
 
