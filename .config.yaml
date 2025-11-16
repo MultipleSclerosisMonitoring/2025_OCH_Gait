@@ -1,0 +1,8 @@
+influxdb:
+  bucket: ***REMOVED***
+  org: "***REMOVED***"
+  token: "TU_TOKEN"
+  url: "***REMOVED***/"
+
+Location:
+  zoneInfo: "Europe/Madrid"
