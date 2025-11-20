@@ -52,7 +52,7 @@ def get_args():
         help="Nombre del tag en InfluxDB para la referencia"
     )
     p.add_argument(
-        "--foot-tag", default="foot",
+        "--foot-tag", default="Foot",
         help="Nombre del tag en InfluxDB para el pie (Left/Right)"
     )
     return p.parse_args()
@@ -126,7 +126,13 @@ from(bucket: "{bucket}")
   |> range(start: time(v: "{start_iso}"), stop: time(v: "{stop_iso}"))
   |> filter(fn: (r) => r["{ref_tag}"] == "{reference}")
   |> filter(fn: (r) => r["{foot_tag}"] == "{foot}")
+  |> filter(fn: (r) => r["_field"] == "Ax" or r["_field"] == "Ay" or r["_field"] == "Az" or
+                       r["_field"] == "Gx" or r["_field"] == "Gy" or r["_field"] == "Gz" or
+                       r["_field"] == "Mx" or r["_field"] == "My" or r["_field"] == "Mz")
+  |> pivot(rowKey:["_time"], columnKey:["_field"], valueColumn:"_value")
 '''
+    print(query)
+    
     return query
 
 
@@ -182,7 +188,6 @@ def main():
         print(flux)
         
         tables = query_api.query(flux)
-
 
         # Contar cuántos registros hay
         n_registros = sum(len(t.records) for t in tables)
