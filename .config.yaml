@@ -1,0 +1,28 @@
+influxdb:
+  url: "https://TU_URL"
+  org: "TU_ORG"
+  bucket: "TU_BUCKET"
+  token: "TU_TOKEN"
+  verify_ssl: false
+
+Location:
+  zoneInfo: "Europe/Madrid"
+
+tags:
+  ref_tag: "reference"
+  foot_tag: "Foot"
+
+spectrogram:
+  window_s: 10.0
+  delta_t_s: 1.0
+  fmax_hz: 5.0
+  window_type: "hann"
+  power_scale: "db"
+  signals:
+    - "Ax"
+    - "Gx"
+    - "S2"
+  feet:
+    - "Right"
+    - "Left"
+  resample_hz: 100.0
