@@ -7,32 +7,30 @@ from zoneinfo import ZoneInfo
 
 class TimeProcessor:
     """Parses datetimes and converts them to UTC for InfluxDB."""
-
     @staticmethod
     def to_utc_rfc3339_and_key(dt_str: str, tz_name: str) -> Tuple[str, str]:
-        """Convert local datetime string to UTC RFC3339 and local compact key.
+        """Convert input datetime string to RFC3339 without shifting clock time.
+
+        Important:
+            In this project, timestamps passed through CLI must be queried in
+            InfluxDB preserving the wall-clock time written by the user.
+            Therefore, we do not convert from local timezone to UTC here.
 
         Args:
             dt_str: Datetime string, e.g. "2025-07-01 15:59:14" (or with 'T').
-            tz_name: IANA timezone name, e.g. "Europe/Madrid".
+            tz_name: Timezone name (kept for interface compatibility).
 
         Returns:
-            Tuple (utc_rfc3339, local_key) where:
-                - utc_rfc3339: UTC RFC3339 string for InfluxDB (e.g., "...Z").
+            Tuple (rfc3339_str, local_key) where:
+                - rfc3339_str: RFC3339-like string preserving the same clock time.
                 - local_key: Local compact string YYYYMMDDTHHMMSS.
-
-        Raises:
-            ValueError: If dt_str does not match the expected format.
         """
         s = dt_str.strip().replace("T", " ")
         dt = datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
-        dt_local = dt.replace(tzinfo=ZoneInfo(tz_name))
 
-        dt_utc = dt_local.astimezone(ZoneInfo("UTC"))
-        utc_rfc3339 = dt_utc.isoformat().replace("+00:00", "Z")
-
-        key_str = dt_local.strftime("%Y%m%dT%H%M%S")
-        return utc_rfc3339, key_str
+        rfc3339_str = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        key_str = dt.strftime("%Y%m%dT%H%M%S")
+        return rfc3339_str, key_str
 
     @staticmethod
     def to_local_datetime(dt_str: str, tz_name: str) -> datetime:

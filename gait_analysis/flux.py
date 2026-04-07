@@ -40,7 +40,6 @@ class FluxQueryBuilder:
         query = f'''
 from(bucket: "{bucket}")
   |> range(start: time(v: "{start_iso}"), stop: time(v: "{stop_iso}"))
-  |> filter(fn: (r) => r["{ref_tag}"] == "{reference}")
   |> filter(fn: (r) => r["{foot_tag}"] == "{foot}")
   |> filter(fn: (r) => {field_filters})
 '''
