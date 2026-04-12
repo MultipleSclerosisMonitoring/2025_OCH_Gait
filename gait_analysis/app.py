@@ -163,11 +163,11 @@ class ExtractApp:
             half_window = timedelta(seconds=spec_cfg.window_s / 2.0)
 
             for center_local in centers_local:
-                center_utc = pd.Timestamp(center_local.astimezone(ZoneInfo("UTC")))
-                start_utc = pd.Timestamp((center_local - half_window).astimezone(ZoneInfo("UTC")))
-                stop_utc = pd.Timestamp((center_local + half_window).astimezone(ZoneInfo("UTC")))
+                center_ts = pd.Timestamp(center_local.replace(tzinfo=ZoneInfo("UTC")))
+                start_ts = pd.Timestamp((center_local - half_window).replace(tzinfo=ZoneInfo("UTC")))
+                stop_ts = pd.Timestamp((center_local + half_window).replace(tzinfo=ZoneInfo("UTC")))
 
-                window_df = df_rs.loc[start_utc:stop_utc]
+                window_df = df_rs.loc[start_ts:stop_ts]
 
                 if window_df.empty:
                     continue
@@ -185,7 +185,7 @@ class ExtractApp:
                         reference=self._args.reference,
                         foot=foot,
                         signal_name=signal_name,
-                        time_center=center_utc,
+                        time_center=center_ts,
                         freqs=freqs,
                         powers=powers,
                     )
@@ -204,9 +204,22 @@ class ExtractApp:
             raise ValueError("No se han generado filas para el parquet.")
 
         out_df = pd.DataFrame(all_rows)
-        out_df.to_parquet(self._args.output, index=False)
 
-        print(f"Parquet guardado en: {self._args.output}")
+        output_path = self._args.output.lower()
+        if output_path.endswith(".parquet"):
+            out_df.to_parquet(self._args.output, index=False)
+            print(f"Parquet guardado en: {self._args.output}")
+        elif output_path.endswith(".xlsx"):
+            out_df.to_excel(self._args.output, index=False)
+            print(f"Excel guardado en: {self._args.output}")
+        elif output_path.endswith(".h5") or output_path.endswith(".hdf5"):
+            out_df.to_hdf(self._args.output, key="spectrogram", mode="w")
+            print(f"HDF5 guardado en: {self._args.output}")
+        else:
+            raise ValueError(
+                "Formato de salida no soportado. Usa un fichero .parquet, .xlsx o .h5"
+            )
+
         print(f"Filas totales: {len(out_df)}")
         print(f"Right arriba: {len(rows_right)} filas")
         print(f"Left abajo: {len(rows_left)} filas")

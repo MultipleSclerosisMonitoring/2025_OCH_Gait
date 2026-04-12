@@ -1,0 +1,36 @@
+digraph G {
+    rankdir=LR;
+    node [shape=box, style=rounded];
+
+    entry [label="extract_influx_hdf5.py\n(entry point)"];
+    cli [label="CLI\n(argparse)"];
+    config [label="ConfigLoader\n(.config.yaml)"];
+    app [label="ExtractApp\n(orchestration)"];
+
+    influx [label="InfluxService\n(query execution)"];
+    flux [label="FluxQueryBuilder\n(Flux query)"];
+    time [label="TimeProcessor\n(time handling)"];
+    resample [label="Resampler\n(signal resampling)"];
+    spectrum [label="PowerSpectrumEngine\n(power spectrum)"];
+    rowbuilder [label="ParquetRowBuilder\n(output rows)"];
+
+    count [label="Mode: count"];
+    spectrogram [label="Mode: spectrogram"];
+    outputs [label="Outputs\n.parquet / .xlsx / .h5"];
+
+    entry -> cli;
+    entry -> config;
+    entry -> app;
+
+    app -> time;
+    app -> flux;
+    app -> influx;
+
+    app -> count;
+    app -> spectrogram;
+
+    spectrogram -> resample;
+    spectrogram -> spectrum;
+    spectrogram -> rowbuilder;
+    rowbuilder -> outputs;
+}

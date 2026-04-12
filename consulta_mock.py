@@ -18,6 +18,7 @@ import math
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from scipy.signal import find_peaks
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Consulta MOCK: genera datos y calcula features sin conectar a Influx"
     )
     p.add_argument(
-        "--f",
+        "-f",
         "--from_time",
         required=True,
         help='Inicio ventana: "YYYY-MM-DD HH:MM:SS" o ISO "YYYY-MM-DDTHH:MM:SSZ"',
@@ -141,7 +142,7 @@ class MockQuery:
         n =int((self.end - self.start).total_seconds() * self.fs)
         t = np.arange(n) / self.fs
         
-        f_step = 1-6 # Hz aprox caminando
+        f_step = 1.6 # Hz aprox caminando
         phase = 0.0 if self.side.lower().startswith("l") else math.pi / 6
 
         ax = 0.2 * np.sin(2 * np.pi * f_step * t + phase) + 0.05 * np.random.randn(n)
@@ -185,9 +186,9 @@ def compute_features(df: pd.DataFrame) -> dict:
   duration_s = (df["time"].iloc[-1] - df["time"].iloc[0]).total_seconds()
 
   thr = acc_mag.mean() + 0.6 * acc_mag.std()
-  peaks = (acc_mag.shift(1) < thr) & (acc_mag >= thr)
-  n_steps = int(peaks.sum())
-  cadence_spm = 60.0 * n_steps / duration_s if duration_s > 0 else 0.0
+  peak_idx, _ = find_peaks(acc_mag, height=thr, distance=20)
+  n_steps = int(len(peak_idx))
+  cadence_spm = 60.0 * n_steps / duration_s if duration_s > 0 else 0.0    
 
   return {
       "duration_s": round(float(duration_s), 3),

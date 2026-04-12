@@ -47,10 +47,10 @@ class CLI:
         p.add_argument(
             "-o",
             "--output",
-            default="salida.h5",
+            default="salida.parquet",
             help=(
                 "Fichero de salida. En mode=count no se usa. "
-                "En mode=spectrogram debe ser un .parquet."
+                "En mode=spectrogram actualmente se guarda en formato parquet."
             ),
         )
         p.add_argument(
