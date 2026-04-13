@@ -34,8 +34,11 @@ spectrogram:
 
   signals:
     - "Ax"
+    - "Ay"
+    - "Az"
     - "Gx"
-    - "S2"
+    - "Gy"
+    - "Gz"
 
   feet:
     - "Right"
