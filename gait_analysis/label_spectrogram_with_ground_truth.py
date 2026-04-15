@@ -66,11 +66,30 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
 
+    filtered_output_path = output_path.with_name(output_path.stem + "_filtered.parquet")
+    df_filtered = df[df["mov_type"] != "NO_LABEL"].copy()
+    df_filtered.to_parquet(filtered_output_path, index=False)
+
     print(df["mov_type"].value_counts(dropna=False).to_string())
+
+    print()
+    centers_summary = (
+        df[["time_center", "mov_type"]]
+        .drop_duplicates()
+        .groupby("mov_type")
+        .size()
+        .sort_index()
+    )
+    print("Unique centers by mov_type:")
+    print(centers_summary.to_string())
+    print()
+    no_label_rows = int((df["mov_type"] == "NO_LABEL").sum())
+    print(f"NO_LABEL rows: {no_label_rows}")
 
     print(f"Input spectrogram: {input_path}")
     print(f"Input ground truth: {ground_truth_path}")
     print(f"Output labeled parquet: {output_path}")
+    print(f"Output filtered parquet: {filtered_output_path}")
     print(f"Spectrogram rows: {len(df)}")
     print(f"Ground-truth rows: {len(gt)}")
 
