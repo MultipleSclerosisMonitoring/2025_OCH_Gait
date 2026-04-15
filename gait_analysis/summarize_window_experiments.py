@@ -9,10 +9,10 @@ import pandas as pd
 
 
 FILES = {
-    1.0: Path("salidas_test/recheck_window_1s.parquet"),
-    3.0: Path("salidas_test/recheck_window_3s.parquet"),
-    5.0: Path("salidas_test/recheck_window_5s.parquet"),
-    10.0: Path("salidas_test/recheck_window_10s.parquet"),
+    1.0: Path("salidas_test/window_1s.parquet"),
+    3.0: Path("salidas_test/window_3s.parquet"),
+    5.0: Path("salidas_test/window_5s.parquet"),
+    10.0: Path("salidas_test/window_10s.parquet"),
 }
 
 OUTPUT_CSV = Path("salidas_test/window_experiment_summary.csv")
