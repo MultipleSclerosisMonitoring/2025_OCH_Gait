@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 
 class TimeProcessor:
-    """Parses datetimes and converts them to UTC for InfluxDB."""
+    """Parses project datetimes and formats query timestamps for InfluxDB."""
     @staticmethod
     def to_utc_rfc3339_and_key(dt_str: str, tz_name: str) -> Tuple[str, str]:
         """Build an RFC3339-like timestamp string preserving the input wall-clock time.
@@ -83,3 +83,4 @@ class TimeProcessor:
             t += step
 
         return centers
+        
