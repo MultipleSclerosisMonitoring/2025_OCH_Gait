@@ -190,6 +190,117 @@ En el estado actual del proyecto ya se dispone de:
 * baselines iniciales de clasificación
 * documentación Sphinx con diagrama de arquitectura
 
+## Mapa actual del proyecto
+
+### Ejecución principal
+
+Punto de entrada principal:
+
+* `extract_influx_hdf5.py`
+
+Módulos base del paquete:
+
+* `gait_analysis/app.py`
+* `gait_analysis/cli.py`
+* `gait_analysis/config.py`
+* `gait_analysis/flux.py`
+* `gait_analysis/influx_service.py`
+* `gait_analysis/models.py`
+* `gait_analysis/resampling.py`
+* `gait_analysis/spectrum.py`
+* `gait_analysis/time_utils.py`
+
+### Utilidades de ground truth
+
+El proyecto incluye scripts auxiliares para preparar y analizar el ground truth:
+
+- `gait_analysis/build_ground_truth_template.py`
+- `gait_analysis/build_ground_truth_excel.py`
+- `gait_analysis/build_window_configs.py`
+- `gait_analysis/summarize_window_experiments.py`
+- `gait_analysis/label_spectrogram_with_ground_truth.py`
+- `gait_analysis/summarize_labeled_spectrogram.py`
+- `gait_analysis/combine_labeled_datasets.py`
+- `gait_analysis/build_wide_dataset.py`
+- `gait_analysis/inspect_wide_dataset.py`
+- `gait_analysis/prepare_ml_dataset.py`
+
+### Utilidades de experimentos con ventanas
+
+* `gait_analysis/build_window_configs.py`
+  Genera configuraciones YAML para distintas longitudes de ventana.
+
+* `gait_analysis/summarize_window_experiments.py`
+  Resume los resultados de los experimentos comparativos entre ventanas.
+
+### Utilidades de preparación de datasets
+
+* `gait_analysis/summarize_labeled_spectrogram.py`
+  Resume un fichero parquet etiquetado.
+
+* `gait_analysis/combine_labeled_datasets.py`
+  Combina varios datasets etiquetados en un único fichero.
+
+* `gait_analysis/build_wide_dataset.py`
+  Convierte un dataset etiquetado desde formato `long` a formato `wide`.
+
+* `gait_analysis/inspect_wide_dataset.py`
+  Inspecciona un dataset `wide` para detectar problemas antes de ML.
+
+* `gait_analysis/prepare_ml_dataset.py`
+  Prepara la estructura de entrada y salida para baselines de clasificación.
+
+### Utilidades de baselines
+
+* `gait_analysis/run_baseline_logreg.py`
+  Baseline con Logistic Regression usando una partición simple train/test.
+
+* `gait_analysis/run_baseline_logreg_cv.py`
+  Baseline con Logistic Regression usando validación cruzada estratificada.
+
+* `gait_analysis/run_baseline_rf_cv.py`
+  Baseline con Random Forest usando validación cruzada estratificada.
+
+* `gait_analysis/write_baseline_summary.py`
+  Exporta un resumen compacto de resultados de baseline a CSV.
+
+## Artefactos principales generados
+
+Ficheros relevantes generados actualmente en `salidas_test/`:
+
+* `ground_truth_clean.xlsx`
+  Ground truth limpio.
+
+* `ground_truth_clean_overlaps.csv`
+  Solapes temporales detectados en el ground truth.
+
+* `reference_coverage_summary.csv`
+  Resumen de referencias con cobertura utilizable en InfluxDB.
+
+* `window_experiment_summary.csv`
+  Resumen de los experimentos con distintas longitudes de ventana.
+
+* `combined_labeled_dataset_v2.parquet`
+  Dataset combinado etiquetado en formato `long`.
+
+* `combined_labeled_dataset_v2_wide_clean.parquet`
+  Dataset limpio en formato `wide` usado para los baselines de ML.
+
+* `baseline_results_summary_v2.csv`
+  Resumen de los resultados de baselines.
+
+## Artefactos de referencia recomendados
+
+En el estado actual del proyecto, los ficheros de referencia principales son:
+
+* `salidas_test/ground_truth_clean.xlsx`
+* `salidas_test/reference_coverage_summary.csv`
+* `salidas_test/window_experiment_summary.csv`
+* `salidas_test/combined_labeled_dataset_v2.parquet`
+* `salidas_test/combined_labeled_dataset_v2_wide_clean.parquet`
+* `salidas_test/baseline_results_summary_v2.csv`
+
+
 ## Limitaciones actuales
 
 Por ahora, las principales limitaciones detectadas son:
