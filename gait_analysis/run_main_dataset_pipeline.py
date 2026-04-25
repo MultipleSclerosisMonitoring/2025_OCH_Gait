@@ -73,10 +73,13 @@ def main() -> None:
         from_time = str(row["from_time"])
         until_time = str(row["until_time"])
         safe_ref = ref.replace("-", "_")
+        safe_from = from_time.replace("-", "").replace(":", "").replace(" ", "_")
+        safe_until = until_time.replace("-", "").replace(":", "").replace(" ", "_")
+        block_id = f"{safe_ref}_{safe_from}_{safe_until}"
 
-        spectrogram_path = workdir / f"{safe_ref}_window_1s.parquet"
-        labeled_path = workdir / f"{safe_ref}_window_1s_labeled.parquet"
-        filtered_path = workdir / f"{safe_ref}_window_1s_labeled_filtered.parquet"
+        spectrogram_path = workdir / f"{block_id}_window_1s.parquet"
+        labeled_path = workdir / f"{block_id}_window_1s_labeled.parquet"
+        filtered_path = workdir / f"{block_id}_window_1s_labeled_filtered.parquet"
 
         run_cmd(
             [
@@ -157,4 +160,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-    
