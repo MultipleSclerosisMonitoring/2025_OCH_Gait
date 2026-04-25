@@ -45,6 +45,19 @@ para ambos pies:
 * `Right`
 * `Left`
 
+
+## Tratamiento horario
+
+Las fechas introducidas por CLI se interpretan en la zona horaria indicada mediante `--from-tz` (por defecto, `Europe/Madrid`).
+
+Internamente, el proyecto convierte esas fechas a **UTC real** antes de consultar InfluxDB. Esto permite que los rangos temporales introducidos por el usuario coincidan con la hora local mostrada en Grafana, evitando desfases entre la visualización y la extracción.
+
+Ejemplo conceptual:
+
+* entrada local: `2025-07-01 16:08:20` en `Europe/Madrid`
+* consulta enviada a InfluxDB: `2025-07-01T14:08:20Z`
+
+
 ## Modos principales de ejecución
 
 ### 1. Modo `count`
@@ -58,6 +71,7 @@ Ejemplo:
 -f "2025-07-01 14:08:20" \
 -u "2025-07-01 14:08:40" \
 -q "TESTPATIENT-98" \
+--from-tz Europe/Madrid
 --mode count \
 -v
 ```
@@ -95,6 +109,7 @@ Ejemplo:
 -f "2025-07-01 14:08:20" \
 -u "2025-07-01 14:08:40" \
 -q "TESTPATIENT-98" \
+--from-tz Europe/Madrid
 --mode spectrogram \
 -o "salidas_test/test_full_imu.parquet" \
 -v
