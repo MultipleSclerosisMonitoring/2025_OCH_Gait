@@ -48,14 +48,11 @@ para ambos pies:
 
 ## Tratamiento horario
 
-Las fechas introducidas por CLI se interpretan en la zona horaria indicada mediante `--from-tz` (por defecto, `Europe/Madrid`).
+Las fechas introducidas por CLI se interpretan según la configuración temporal actual del proyecto y se envían a InfluxDB preservando la hora escrita por el usuario en el rango solicitado.
 
-Internamente, el proyecto convierte esas fechas a **UTC real** antes de consultar InfluxDB. Esto permite que los rangos temporales introducidos por el usuario coincidan con la hora local mostrada en Grafana, evitando desfases entre la visualización y la extracción.
+Este comportamiento es el que mantiene la compatibilidad con el dataset histórico y con la generación actual de espectrogramas usada en el pipeline principal.
 
-Ejemplo conceptual:
-
-* entrada local: `2025-07-01 16:08:20` en `Europe/Madrid`
-* consulta enviada a InfluxDB: `2025-07-01T14:08:20Z`
+Al comparar directamente con Grafana, puede observarse un desfase respecto a la hora local mostrada en la interfaz. La unificación completa del tratamiento horario entre Grafana, ground truth y pipeline queda como una mejora futura del proyecto.
 
 
 ## Modos principales de ejecución
@@ -71,7 +68,6 @@ Ejemplo:
 -f "2025-07-01 14:08:20" \
 -u "2025-07-01 14:08:40" \
 -q "TESTPATIENT-98" \
---from-tz Europe/Madrid
 --mode count \
 -v
 ```
@@ -109,7 +105,6 @@ Ejemplo:
 -f "2025-07-01 14:08:20" \
 -u "2025-07-01 14:08:40" \
 -q "TESTPATIENT-98" \
---from-tz Europe/Madrid
 --mode spectrogram \
 -o "salidas_test/test_full_imu.parquet" \
 -v
