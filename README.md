@@ -144,6 +144,7 @@ Estos scripts permiten:
 - transformar datasets etiquetados de formato `long` a formato `wide`
 - inspeccionar datasets preparados para ML
 - preparar matrices de entrada y vectores objetivo para baselines
+- importar tablas exportadas desde Grafana y adaptarlas al formato estándar de ground truth del proyecto
 
 ## Pipeline actual de etiquetado y preparación para ML
 
@@ -275,6 +276,27 @@ El proyecto incluye scripts auxiliares para preparar y analizar el ground truth:
 - `gait_analysis/build_wide_dataset.py`
 - `gait_analysis/inspect_wide_dataset.py`
 - `gait_analysis/prepare_ml_dataset.py`
+
+## Integración con Grafana
+
+El proyecto soporta un flujo semiautomático para construir ground truth a partir de datos exportados desde Grafana.
+
+Flujo actual:
+
+1. inspección visual o exportación de datos desde un panel de Grafana,
+2. exportación de la tabla en formato CSV o Excel,
+3. adaptación al formato estándar del proyecto mediante `gait_analysis/import_ground_truth_table.py`,
+4. limpieza y normalización final con `gait_analysis/build_ground_truth_excel.py`.
+
+Este flujo permite convertir tablas exportadas desde Grafana al formato interno de ground truth usado por el pipeline:
+
+* `Reference`
+* `datefrom`
+* `dateuntil`
+* `mov_type`
+
+La integración actual es **semiautomática**: Grafana se utiliza como fuente de datos exportables o apoyo visual para etiquetado, pero la construcción final del ground truth todavía requiere una fase intermedia de importación/normalización dentro del proyecto.
+
 
 ### Utilidades de experimentos con ventanas
 
