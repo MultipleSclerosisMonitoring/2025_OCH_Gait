@@ -124,15 +124,16 @@ El proyecto incluye scripts auxiliares para preparar y analizar el ground truth:
 
 Estos scripts permiten:
 
-* limpiar y normalizar Excels de etiquetas de marcha
-* preparar configuraciones para distintas longitudes de ventana
-* resumir experimentos comparativos entre ventanas
-* asignar etiquetas `walking` / `not_walking` a ventanas espectrales
-* conservar o filtrar ventanas `NO_LABEL`
-* combinar varios datasets etiquetados
-* transformar datasets etiquetados de formato `long` a formato `wide`
-* inspeccionar datasets preparados para ML
-* preparar matrices de entrada y vectores objetivo para baselines
+- generar una plantilla Excel de ground truth con intervalos temporales fijos para su etiquetado manual posterior usando Grafana
+- limpiar y normalizar Excels de etiquetas de marcha
+- preparar configuraciones para distintas longitudes de ventana
+- resumir experimentos comparativos entre ventanas
+- asignar etiquetas `walking` / `not_walking` a ventanas espectrales
+- conservar o filtrar ventanas `NO_LABEL`
+- combinar varios datasets etiquetados
+- transformar datasets etiquetados de formato `long` a formato `wide`
+- inspeccionar datasets preparados para ML
+- preparar matrices de entrada y vectores objetivo para baselines
 
 ## Pipeline actual de etiquetado y preparación para ML
 
@@ -151,13 +152,38 @@ En el formato `wide`, cada fila representa un centro temporal de ventana y conti
 
 ## Baselines iniciales
 
-Se han ejecutado baselines simples sobre el dataset `wide` limpio:
+Se han ejecutado baselines simples sobre el dataset principal en formato `wide` limpio.
 
-* clasificador trivial que predice siempre `not_walking`
+Dataset actual usado para clasificación:
+
+* muestras totales: `646`
+* `not_walking`: `545`
+* `walking`: `101`
+
+Modelos comparados:
+
+* clasificador trivial
 * Logistic Regression
 * Random Forest
 
-La principal conclusión es que **la accuracy por sí sola no es suficiente** para evaluar este problema, ya que el dataset está desbalanceado. Aunque el clasificador trivial y Random Forest obtuvieron mayor accuracy, Logistic Regression mostró mejor capacidad para detectar la clase minoritaria `walking`, especialmente en términos de `recall` y `F1-score`. Por ello, actualmente se considera el baseline más informativo.
+En el dataset ampliado, la **Logistic Regression** se mantiene como el baseline más útil para este problema, ya que ofrece mejor capacidad para detectar la clase minoritaria `walking`.
+
+Resultados principales del dataset final ampliado:
+
+* **Logistic Regression**
+
+  * accuracy: `0.6857`
+  * `F1-score (walking)`: `0.3512`
+  * `recall (walking)`: `0.5443`
+
+* **Random Forest**
+
+  * accuracy: `0.8483`
+  * `F1-score (walking)`: `0.1791`
+  * `recall (walking)`: `0.1095`
+
+La principal conclusión es que **la accuracy por sí sola no es suficiente** para evaluar este problema, ya que el dataset está desbalanceado. Aunque Random Forest obtiene mayor accuracy, Logistic Regression detecta mucho mejor la clase `walking`, por lo que actualmente se considera el baseline principal del proyecto.
+
 
 ## Documentación
 
