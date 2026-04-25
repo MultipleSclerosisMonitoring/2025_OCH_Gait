@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Tuple
 from zoneinfo import ZoneInfo
 
@@ -8,30 +8,27 @@ from zoneinfo import ZoneInfo
 class TimeProcessor:
     """Parses project datetimes and formats query timestamps for InfluxDB."""
     @staticmethod
+    @staticmethod
     def to_utc_rfc3339_and_key(dt_str: str, tz_name: str) -> Tuple[str, str]:
-        """Build an RFC3339-like timestamp string preserving the input wall-clock time.
-
-        Important:
-            For this project and dataset, the timestamps passed through CLI are sent to
-            InfluxDB preserving the same clock time written by the user. This method
-            does not perform a real timezone conversion to UTC, even though the output
-            string ends with 'Z'.
+        """Convert a local datetime string to a real UTC RFC3339 timestamp.
 
         Args:
-            dt_str: Datetime string, e.g. "2025-07-01 15:59:14" (or with 'T').
-            tz_name: Timezone name kept for interface compatibility.
+            dt_str: Datetime string, e.g. "2025-07-01 16:08:20" (or with 'T').
+            tz_name: IANA timezone name, e.g. "Europe/Madrid".
 
         Returns:
             Tuple (rfc3339_str, local_key) where:
-                - rfc3339_str: Timestamp string in RFC3339-like format preserving the
-                original wall-clock time.
+                - rfc3339_str: Real UTC timestamp string in RFC3339 format.
                 - local_key: Compact local string YYYYMMDDTHHMMSS.
         """
         s = dt_str.strip().replace("T", " ")
-        dt = datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+        dt_local = datetime.strptime(s, "%Y-%m-%d %H:%M:%S").replace(
+            tzinfo=ZoneInfo(tz_name)
+        )
+        dt_utc = dt_local.astimezone(timezone.utc)
 
-        rfc3339_str = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-        key_str = dt.strftime("%Y%m%dT%H%M%S")
+        rfc3339_str = dt_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+        key_str = dt_local.strftime("%Y%m%dT%H%M%S")
         return rfc3339_str, key_str
 
     @staticmethod
@@ -83,4 +80,3 @@ class TimeProcessor:
             t += step
 
         return centers
-        
