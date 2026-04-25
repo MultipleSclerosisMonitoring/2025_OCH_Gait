@@ -166,9 +166,9 @@ Se han ejecutado baselines simples sobre el dataset principal en formato `wide` 
 
 Dataset actual usado para clasificación:
 
-* muestras totales: `646`
-* `not_walking`: `545`
-* `walking`: `101`
+* muestras totales: `844`
+* `not_walking`: `616`
+* `walking`: `228`
 
 Modelos comparados:
 
@@ -176,9 +176,24 @@ Modelos comparados:
 * Logistic Regression
 * Random Forest
 
-En el dataset ampliado, la **Logistic Regression** se mantiene como el baseline más útil para este problema, ya que ofrece mejor capacidad para detectar la clase minoritaria `walking`.
+En la versión ampliada actual del dataset, la **Logistic Regression** se mantiene como el baseline más útil para este problema, ya que ofrece mejor capacidad para detectar la clase minoritaria `walking`.
 
 Resultados principales del dataset final ampliado:
+
+* **Logistic Regression**
+
+  * accuracy: `0.7145`
+  * `F1-score (walking)`: `0.5503`
+  * `recall (walking)`: `0.6494`
+
+* **Random Forest**
+
+  * accuracy: `0.7891`
+  * `F1-score (walking)`: `0.4982`
+  * `recall (walking)`: `0.3901`
+
+La principal conclusión es que **la accuracy por sí sola no es suficiente** para evaluar este problema, ya que el dataset sigue desbalanceado. Aunque Random Forest obtiene mayor accuracy, Logistic Regression detecta mejor la clase `walking`, por lo que actualmente se considera el baseline principal del proyecto.
+
 
 * **Logistic Regression**
 
