@@ -112,17 +112,33 @@ class ExtractApp:
         tables = self._influx.query(flux)
         return self._influx.tables_to_dataframe(tables)
 
-    def run_spectrogram(self) -> None:
-        """Run sliding-window spectral processing and save parquet.
+    def _build_common_time_index(
+        self,
+        start_ts: pd.Timestamp,
+        stop_ts: pd.Timestamp,
+        resample_hz: float,
+    ) -> pd.DatetimeIndex:
+        """Build a common UTC time grid for both feet.
 
-        Workflow:
-            1. Extract the full gait interval for each foot.
-            2. Resample signals to a uniform frequency.
-            3. Generate centered 10-second windows every delta_t_s.
-            4. Compute power spectra for each signal and each center.
-            5. Keep frequencies below fmax_hz.
-            6. Stack right-foot rows first and left-foot rows after.
-            7. Save output to parquet.
+        Args:
+            start_ts: Common inclusive start timestamp in UTC.
+            stop_ts: Common inclusive stop timestamp in UTC.
+            resample_hz: Target resampling frequency.
+
+        Returns:
+            UTC DatetimeIndex with fixed sampling step.
+        """
+        step_ms = int(round(1000.0 / resample_hz))
+        return pd.date_range(start=start_ts, end=stop_ts, freq=f"{step_ms}ms", tz="UTC")
+
+    def run_spectrogram(self) -> None:
+        """Run sliding-window spectral processing and save output.
+
+        The workflow enforces:
+            - a real temporal intersection between both feet,
+            - a common resampled time grid,
+            - full windows only,
+            - comparable time_center values for both feet.
         """
         tz = self._get_tz()
         spec_cfg = self._config.spectrogram
@@ -130,14 +146,8 @@ class ExtractApp:
         rows_right: List[Dict[str, object]] = []
         rows_left: List[Dict[str, object]] = []
 
-        start_local = TimeProcessor.to_local_datetime(self._args.from_time, tz)
-        stop_local = TimeProcessor.to_local_datetime(self._args.until, tz)
-        centers_local = TimeProcessor.generate_window_centers(
-            start_dt=start_local,
-            stop_dt=stop_local,
-            window_s=spec_cfg.window_s,
-            delta_t_s=spec_cfg.delta_t_s,
-        )
+        requested_start_local = TimeProcessor.to_local_datetime(self._args.from_time, tz)
+        requested_stop_local = TimeProcessor.to_local_datetime(self._args.until, tz)
 
         if self._args.verbose:
             print("Modo spectrogram activado")
@@ -148,34 +158,117 @@ class ExtractApp:
             print("Resample (Hz):", spec_cfg.resample_hz)
             print("Señales:", spec_cfg.signals)
             print("Pies:", spec_cfg.feet)
-            print("Centros de ventana generados:", len(centers_local))
             print()
 
+        # 1. Load both feet first
+        foot_data: Dict[str, pd.DataFrame] = {}
         for foot in spec_cfg.feet:
             df = self._load_foot_dataframe(foot)
             if df.empty:
                 print(f"⚠️ No hay datos para el pie {foot}.")
-                continue
+                return
+            foot_data[foot] = df
 
+        # 2. Resample each foot independently first
+        foot_rs: Dict[str, pd.DataFrame] = {}
+        foot_min: Dict[str, pd.Timestamp] = {}
+        foot_max: Dict[str, pd.Timestamp] = {}
+
+        for foot, df in foot_data.items():
             df_rs = Resampler.resample_dataframe(df, spec_cfg.resample_hz, spec_cfg.signals)
+            if df_rs.empty:
+                print(f"⚠️ No hay datos remuestreados para el pie {foot}.")
+                return
 
-            foot_rows: List[Dict[str, object]] = []
-            half_window = timedelta(seconds=spec_cfg.window_s / 2.0)
+            foot_rs[foot] = df_rs
+            foot_min[foot] = df_rs.index.min()
+            foot_max[foot] = df_rs.index.max()
 
-            for center_local in centers_local:
-                center_ts = pd.Timestamp(center_local.replace(tzinfo=ZoneInfo("UTC")))
-                start_ts = pd.Timestamp((center_local - half_window).replace(tzinfo=ZoneInfo("UTC")))
-                stop_ts = pd.Timestamp((center_local + half_window).replace(tzinfo=ZoneInfo("UTC")))
+        # 3. Convert requested local interval to UTC-like timestamps used internally
+        requested_start_ts = pd.Timestamp(requested_start_local.replace(tzinfo=ZoneInfo("UTC")))
+        requested_stop_ts = pd.Timestamp(requested_stop_local.replace(tzinfo=ZoneInfo("UTC")))
 
-                window_df = df_rs.loc[start_ts:stop_ts]
+        # 4. Real intersection between both feet and requested interval
+        start_common = max(
+            requested_start_ts,
+            max(foot_min.values()),
+        )
+        stop_common = min(
+            requested_stop_ts,
+            min(foot_max.values()),
+        )
+
+        if stop_common <= start_common:
+            raise ValueError("No existe intersección temporal común entre ambos pies.")
+
+        half_window = timedelta(seconds=spec_cfg.window_s / 2.0)
+        start_center = start_common + half_window
+        stop_center = stop_common - half_window
+
+        if stop_center <= start_center:
+            raise ValueError("La intersección temporal común no permite ventanas completas.")
+
+        # 5. Build common time grid and reindex both feet onto the same grid
+        common_index = self._build_common_time_index(
+            start_ts=start_common,
+            stop_ts=stop_common,
+            resample_hz=spec_cfg.resample_hz,
+        )
+
+        for foot in spec_cfg.feet:
+            df_rs = foot_rs[foot].reindex(common_index)
+            foot_rs[foot] = df_rs
+
+        # 6. Generate centers only inside full-window common interval
+        centers_local = TimeProcessor.generate_window_centers(
+            start_dt=start_center.to_pydatetime(),
+            stop_dt=stop_center.to_pydatetime(),
+            window_s=spec_cfg.window_s,
+            delta_t_s=spec_cfg.delta_t_s,
+        )
+
+        if self._args.verbose:
+            print("Inicio común real:", start_common)
+            print("Fin común real:", stop_common)
+            print("Centros de ventana generados:", len(centers_local))
+            print()
+
+        # 7. Process centers, requiring complete windows for both feet
+        for center_local in centers_local:
+            center_ts = pd.Timestamp(center_local)
+            start_ts = center_ts - half_window
+            stop_ts = center_ts + half_window
+
+            per_foot_windows: Dict[str, pd.DataFrame] = {}
+            valid_for_both = True
+
+            for foot in spec_cfg.feet:
+                window_df = foot_rs[foot].loc[start_ts:stop_ts]
 
                 if window_df.empty:
-                    continue
+                    valid_for_both = False
+                    break
+
+                # Require complete window with no missing samples in selected signals
+                expected_samples = int(round(spec_cfg.window_s * spec_cfg.resample_hz)) + 1
+                if len(window_df) < expected_samples:
+                    valid_for_both = False
+                    break
+
+                if window_df[spec_cfg.signals].isna().any().any():
+                    valid_for_both = False
+                    break
+
+                per_foot_windows[foot] = window_df
+
+            if not valid_for_both:
+                continue
+
+            for foot in spec_cfg.feet:
+                window_df = per_foot_windows[foot]
+                foot_rows = rows_right if foot.lower() == "right" else rows_left
 
                 for signal_name in spec_cfg.signals:
-                    if signal_name not in window_df.columns:
-                        continue
-
                     signal_values = window_df[signal_name].to_numpy(dtype=float)
                     if signal_values.size < 2:
                         continue
@@ -190,14 +283,6 @@ class ExtractApp:
                         powers=powers,
                     )
                     foot_rows.append(row)
-
-            if foot.lower() == "right":
-                rows_right.extend(foot_rows)
-            else:
-                rows_left.extend(foot_rows)
-
-            if self._args.verbose:
-                print(f"Pie {foot}: filas generadas = {len(foot_rows)}")
 
         all_rows = rows_right + rows_left
         if not all_rows:
@@ -223,7 +308,6 @@ class ExtractApp:
         print(f"Filas totales: {len(out_df)}")
         print(f"Right arriba: {len(rows_right)} filas")
         print(f"Left abajo: {len(rows_left)} filas")
-
     def run(self) -> None:
         """Run the selected mode."""
         if self._args.mode == "count":
@@ -232,3 +316,7 @@ class ExtractApp:
             self.run_spectrogram()
         else:
             raise ValueError(f"Modo no soportado: {self._args.mode}")
+
+    def close(self) -> None:
+        """Close external resources."""
+        self._influx.close()
