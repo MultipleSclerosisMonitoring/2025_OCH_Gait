@@ -8,7 +8,7 @@ Actualmente el pipeline permite:
 
 * contar registros por pie
 * generar espectros de potencia a partir de señales IMU
-* exportar resultados en formato `.parquet`, `.xlsx` y `.h5`
+* exportar resultados en formato `.parquet`, `.xlsx` y `.h5/.hdf5`
 * asignar etiquetas temporales de ground truth a ventanas espectrales
 * combinar datasets etiquetados válidos
 * transformar datasets al formato tabular `wide` para aprendizaje automático
@@ -20,10 +20,10 @@ La lógica principal está organizada dentro del paquete `gait_analysis/`.
 
 El proyecto usa **Poetry** para la gestión de dependencias.
 
-Los ejemplos de este README utilizan el intérprete del entorno virtual de Poetry:
+Los ejemplos de este README utilizan comandos genéricos del entorno de Poetry:
 
 ```bash
-/Users/clarissaotanezgonzalez/Library/Caches/pypoetry/virtualenvs/gait-analysis-tfg-4Mpt7Deb-py3.11/bin/python
+poetry run python ...
 ```
 
 ## Configuración
@@ -45,7 +45,6 @@ para ambos pies:
 * `Right`
 * `Left`
 
-
 ## Tratamiento horario
 
 Las fechas introducidas por CLI se interpretan según la configuración temporal actual del proyecto y se envían a InfluxDB preservando la hora escrita por el usuario en el rango solicitado.
@@ -53,7 +52,6 @@ Las fechas introducidas por CLI se interpretan según la configuración temporal
 Este comportamiento es el que mantiene la compatibilidad con el dataset histórico y con la generación actual de espectrogramas usada en el pipeline principal.
 
 Al comparar directamente con Grafana, puede observarse un desfase respecto a la hora local mostrada en la interfaz. La unificación completa del tratamiento horario entre Grafana, ground truth y pipeline queda como una mejora futura del proyecto.
-
 
 ## Modos principales de ejecución
 
@@ -64,7 +62,7 @@ Se utiliza para comprobar que la extracción desde InfluxDB funciona correctamen
 Ejemplo:
 
 ```bash
-/Users/clarissaotanezgonzalez/Library/Caches/pypoetry/virtualenvs/gait-analysis-tfg-4Mpt7Deb-py3.11/bin/python extract_influx_hdf5.py \
+poetry run python extract_influx_hdf5.py \
 -f "2025-07-01 14:08:20" \
 -u "2025-07-01 14:08:40" \
 -q "TESTPATIENT-98" \
@@ -101,7 +99,7 @@ Configuración actual por defecto:
 Ejemplo:
 
 ```bash
-/Users/clarissaotanezgonzalez/Library/Caches/pypoetry/virtualenvs/gait-analysis-tfg-4Mpt7Deb-py3.11/bin/python extract_influx_hdf5.py \
+poetry run python extract_influx_hdf5.py \
 -f "2025-07-01 14:08:20" \
 -u "2025-07-01 14:08:40" \
 -q "TESTPATIENT-98" \
@@ -109,6 +107,20 @@ Ejemplo:
 -o "salidas_test/test_full_imu.parquet" \
 -v
 ```
+
+### Comportamiento actual del modo `spectrogram`
+
+El pipeline actual de espectrogramas trabaja de forma robusta sobre ambos pies:
+
+* carga `Right` y `Left` por separado
+* remuestrea ambos pies a una frecuencia común
+* calcula la **intersección temporal real** entre ambos pies y el intervalo solicitado
+* construye una **base temporal común**
+* genera centros de ventana solo donde la ventana completa cabe dentro de la intersección
+* conserva únicamente ventanas **completas y comparables**
+* emite filas con los mismos `time_center` en ambos pies
+
+Este comportamiento evita ventanas parciales al final del rango y permite comparar ambos pies sobre una base temporal emparejada.
 
 ## Formatos de salida soportados en `spectrogram`
 
@@ -122,6 +134,8 @@ Según la extensión indicada en `--output`, actualmente se soportan:
 
 El proyecto incluye scripts auxiliares para preparar y analizar el ground truth:
 
+* `gait_analysis/build_ground_truth_template.py`
+* `gait_analysis/import_ground_truth_table.py`
 * `gait_analysis/build_ground_truth_excel.py`
 * `gait_analysis/build_window_configs.py`
 * `gait_analysis/summarize_window_experiments.py`
@@ -130,21 +144,43 @@ El proyecto incluye scripts auxiliares para preparar y analizar el ground truth:
 * `gait_analysis/combine_labeled_datasets.py`
 * `gait_analysis/build_wide_dataset.py`
 * `gait_analysis/inspect_wide_dataset.py`
+* `gait_analysis/clean_wide_dataset.py`
 * `gait_analysis/prepare_ml_dataset.py`
 
 Estos scripts permiten:
 
-- generar una plantilla Excel de ground truth con intervalos temporales fijos para su etiquetado manual posterior usando Grafana
-- limpiar y normalizar Excels de etiquetas de marcha
-- preparar configuraciones para distintas longitudes de ventana
-- resumir experimentos comparativos entre ventanas
-- asignar etiquetas `walking` / `not_walking` a ventanas espectrales
-- conservar o filtrar ventanas `NO_LABEL`
-- combinar varios datasets etiquetados
-- transformar datasets etiquetados de formato `long` a formato `wide`
-- inspeccionar datasets preparados para ML
-- preparar matrices de entrada y vectores objetivo para baselines
-- importar tablas exportadas desde Grafana y adaptarlas al formato estándar de ground truth del proyecto
+* generar una plantilla Excel de ground truth con intervalos temporales fijos para su etiquetado manual posterior usando Grafana
+* importar tablas exportadas y adaptarlas al formato estándar del proyecto
+* limpiar y normalizar Excels de etiquetas de marcha
+* preparar configuraciones para distintas longitudes de ventana
+* resumir experimentos comparativos entre ventanas
+* asignar etiquetas `walking` / `not_walking` a ventanas espectrales
+* conservar o filtrar ventanas `NO_LABEL`
+* combinar varios datasets etiquetados
+* transformar datasets etiquetados de formato `long` a formato `wide`
+* inspeccionar datasets preparados para ML
+* limpiar datasets `wide` eliminando filas con valores faltantes
+* preparar matrices de entrada y vectores objetivo para baselines
+
+## Integración con Grafana
+
+El proyecto soporta un flujo semiautomático para construir ground truth a partir de datos exportados desde Grafana.
+
+Flujo actual:
+
+1. inspección visual o exportación de datos desde un panel de Grafana
+2. exportación de la tabla en formato CSV o Excel
+3. adaptación al formato estándar del proyecto mediante `gait_analysis/import_ground_truth_table.py`
+4. limpieza y normalización final con `gait_analysis/build_ground_truth_excel.py`
+
+Este flujo permite convertir tablas exportadas desde Grafana al formato interno de ground truth usado por el pipeline:
+
+* `Reference`
+* `datefrom`
+* `dateuntil`
+* `mov_type`
+
+La integración actual es **semiautomática**: Grafana se utiliza como fuente de datos exportables o apoyo visual para etiquetado, pero la construcción final del ground truth todavía requiere una fase intermedia de importación/normalización dentro del proyecto.
 
 ## Pipeline actual de etiquetado y preparación para ML
 
@@ -152,12 +188,14 @@ El flujo actual de preparación de datos incluye:
 
 1. extracción de señales desde InfluxDB
 2. generación de espectrogramas con IMU completa en ambos pies
-3. asignación de etiquetas temporales desde el ground truth limpio
-4. marcaje de ventanas ambiguas como `NO_LABEL`
-5. filtrado opcional de dichas ventanas
-6. combinación de referencias válidas
-7. transformación del dataset a formato `wide`
-8. preparación del dataset final para aprendizaje automático
+3. alineación temporal robusta entre ambos pies
+4. asignación de etiquetas temporales desde el ground truth limpio
+5. marcaje de ventanas ambiguas como `NO_LABEL`
+6. filtrado opcional de dichas ventanas
+7. combinación de referencias válidas y bloques temporales válidos
+8. transformación del dataset a formato `wide`
+9. limpieza del dataset `wide`
+10. preparación del dataset final para aprendizaje automático
 
 En el formato `wide`, cada fila representa un centro temporal de ventana y contiene las variables espectrales de potencia asociadas a cada combinación de pie y señal.
 
@@ -177,9 +215,9 @@ Modelos comparados:
 * Logistic Regression
 * Random Forest
 
-En la versión ampliada actual del dataset, la **Logistic Regression** se mantiene como el baseline más útil para este problema, ya que ofrece mejor capacidad para detectar la clase minoritaria `walking`.
+En la versión robusta actual del dataset, la **Logistic Regression** se mantiene como el baseline más útil para este problema, ya que ofrece mejor capacidad para detectar la clase `walking`.
 
-Resultados principales del dataset final ampliado:
+Resultados principales del dataset final actual:
 
 * **Logistic Regression**
 
@@ -193,23 +231,7 @@ Resultados principales del dataset final ampliado:
   * `F1-score (walking)`: `0.4982`
   * `recall (walking)`: `0.3901`
 
-La principal conclusión es que **la accuracy por sí sola no es suficiente** para evaluar este problema, ya que el dataset sigue desbalanceado. Aunque Random Forest obtiene mayor accuracy, Logistic Regression detecta mejor la clase `walking`, por lo que actualmente se considera el baseline principal del proyecto.
-
-
-* **Logistic Regression**
-
-  * accuracy: `0.6857`
-  * `F1-score (walking)`: `0.3512`
-  * `recall (walking)`: `0.5443`
-
-* **Random Forest**
-
-  * accuracy: `0.8483`
-  * `F1-score (walking)`: `0.1791`
-  * `recall (walking)`: `0.1095`
-
-La principal conclusión es que **la accuracy por sí sola no es suficiente** para evaluar este problema, ya que el dataset está desbalanceado. Aunque Random Forest obtiene mayor accuracy, Logistic Regression detecta mucho mejor la clase `walking`, por lo que actualmente se considera el baseline principal del proyecto.
-
+La principal conclusión es que **la accuracy por sí sola no es suficiente** para evaluar este problema. Aunque Random Forest obtiene mayor accuracy, Logistic Regression detecta mejor la clase `walking`, por lo que actualmente se considera el baseline principal del proyecto.
 
 ## Documentación
 
@@ -238,9 +260,12 @@ En el estado actual del proyecto ya se dispone de:
 * etiquetado temporal de espectrogramas
 * combinación de datasets etiquetados
 * transformación a formato `wide` para ML
+* limpieza de datasets `wide`
 * preparación e inspección de datasets para clasificación
 * baselines iniciales de clasificación
+* integración semiautomática con Grafana para el ground truth
 * documentación Sphinx con diagrama de arquitectura
+* alineación temporal robusta entre ambos pies, con ventanas completas y base temporal común
 
 ## Mapa actual del proyecto
 
@@ -264,103 +289,68 @@ Módulos base del paquete:
 
 ### Utilidades de ground truth
 
-El proyecto incluye scripts auxiliares para preparar y analizar el ground truth:
-
-- `gait_analysis/build_ground_truth_template.py`
-- `gait_analysis/build_ground_truth_excel.py`
-- `gait_analysis/build_window_configs.py`
-- `gait_analysis/summarize_window_experiments.py`
-- `gait_analysis/label_spectrogram_with_ground_truth.py`
-- `gait_analysis/summarize_labeled_spectrogram.py`
-- `gait_analysis/combine_labeled_datasets.py`
-- `gait_analysis/build_wide_dataset.py`
-- `gait_analysis/inspect_wide_dataset.py`
-- `gait_analysis/prepare_ml_dataset.py`
-
-## Integración con Grafana
-
-El proyecto soporta un flujo semiautomático para construir ground truth a partir de datos exportados desde Grafana.
-
-Flujo actual:
-
-1. inspección visual o exportación de datos desde un panel de Grafana,
-2. exportación de la tabla en formato CSV o Excel,
-3. adaptación al formato estándar del proyecto mediante `gait_analysis/import_ground_truth_table.py`,
-4. limpieza y normalización final con `gait_analysis/build_ground_truth_excel.py`.
-
-Este flujo permite convertir tablas exportadas desde Grafana al formato interno de ground truth usado por el pipeline:
-
-* `Reference`
-* `datefrom`
-* `dateuntil`
-* `mov_type`
-
-La integración actual es **semiautomática**: Grafana se utiliza como fuente de datos exportables o apoyo visual para etiquetado, pero la construcción final del ground truth todavía requiere una fase intermedia de importación/normalización dentro del proyecto.
-
-
-### Utilidades de experimentos con ventanas
-
+* `gait_analysis/build_ground_truth_template.py`
+* `gait_analysis/import_ground_truth_table.py`
+* `gait_analysis/build_ground_truth_excel.py`
 * `gait_analysis/build_window_configs.py`
-  Genera configuraciones YAML para distintas longitudes de ventana.
-
 * `gait_analysis/summarize_window_experiments.py`
-  Resume los resultados de los experimentos comparativos entre ventanas.
+* `gait_analysis/label_spectrogram_with_ground_truth.py`
 
 ### Utilidades de preparación de datasets
 
 * `gait_analysis/summarize_labeled_spectrogram.py`
-  Resume un fichero parquet etiquetado.
-
 * `gait_analysis/combine_labeled_datasets.py`
-  Combina varios datasets etiquetados en un único fichero.
-
 * `gait_analysis/build_wide_dataset.py`
-  Convierte un dataset etiquetado desde formato `long` a formato `wide`.
-
 * `gait_analysis/inspect_wide_dataset.py`
-  Inspecciona un dataset `wide` para detectar problemas antes de ML.
-
+* `gait_analysis/clean_wide_dataset.py`
 * `gait_analysis/prepare_ml_dataset.py`
-  Prepara la estructura de entrada y salida para baselines de clasificación.
 
 ### Utilidades de baselines
 
 * `gait_analysis/run_baseline_logreg.py`
-  Baseline con Logistic Regression usando una partición simple train/test.
-
 * `gait_analysis/run_baseline_logreg_cv.py`
-  Baseline con Logistic Regression usando validación cruzada estratificada.
-
 * `gait_analysis/run_baseline_rf_cv.py`
-  Baseline con Random Forest usando validación cruzada estratificada.
-
 * `gait_analysis/write_baseline_summary.py`
-  Exporta un resumen compacto de resultados de baseline a CSV.
+
+### Pipeline maestro
+
+* `gait_analysis/run_main_dataset_pipeline.py`
+
+Este script automatiza el flujo principal de:
+
+* extracción
+* etiquetado
+* combinación
+* paso a `wide`
+* limpieza final
 
 ## Artefactos principales generados
 
-Ficheros relevantes generados actualmente en `salidas_test/`:
+Ficheros relevantes generados actualmente en `salidas_test/` y `salidas_test/auto_extracts/`:
 
-* `ground_truth_clean.xlsx`
+* `salidas_test/ground_truth_clean.xlsx`
   Ground truth limpio.
 
-* `ground_truth_clean_overlaps.csv`
+* `salidas_test/ground_truth_clean_overlaps.csv`
   Solapes temporales detectados en el ground truth.
 
-* `reference_coverage_summary.csv`
+* `salidas_test/reference_coverage_summary.csv`
   Resumen de referencias con cobertura utilizable en InfluxDB.
 
-* `window_experiment_summary.csv`
+* `salidas_test/window_experiment_summary.csv`
   Resumen de los experimentos con distintas longitudes de ventana.
 
-* `combined_labeled_dataset_v2.parquet`
+* `salidas_test/auto_extracts/main_combined_labeled_dataset.parquet`
   Dataset combinado etiquetado en formato `long`.
 
-* `combined_labeled_dataset_v2_wide_clean.parquet`
-  Dataset limpio en formato `wide` usado para los baselines de ML.
+* `salidas_test/auto_extracts/main_combined_labeled_dataset_wide.parquet`
+  Dataset en formato `wide`.
 
-* `baseline_results_summary_v2.csv`
-  Resumen de los resultados de baselines.
+* `salidas_test/auto_extracts/main_combined_labeled_dataset_wide_clean.parquet`
+  Dataset limpio en formato `wide` usado para los baselines actuales.
+
+* `salidas_test/final_baseline_results_robust_pipeline.csv`
+  Resumen final de resultados de baselines sobre la versión robusta del pipeline.
 
 ## Artefactos de referencia recomendados
 
@@ -369,10 +359,9 @@ En el estado actual del proyecto, los ficheros de referencia principales son:
 * `salidas_test/ground_truth_clean.xlsx`
 * `salidas_test/reference_coverage_summary.csv`
 * `salidas_test/window_experiment_summary.csv`
-* `salidas_test/combined_labeled_dataset_v2.parquet`
-* `salidas_test/combined_labeled_dataset_v2_wide_clean.parquet`
-* `salidas_test/baseline_results_summary_v2.csv`
-
+* `salidas_test/auto_extracts/main_combined_labeled_dataset.parquet`
+* `salidas_test/auto_extracts/main_combined_labeled_dataset_wide_clean.parquet`
+* `salidas_test/final_baseline_results_robust_pipeline.csv`
 
 ## Limitaciones actuales
 
@@ -380,13 +369,16 @@ Por ahora, las principales limitaciones detectadas son:
 
 * número limitado de referencias con cobertura válida en InfluxDB
 * desbalance entre las clases `walking` y `not_walking`
-* discrepancias entre el ground truth externo y la disponibilidad real de datos en la base de datos
+* integración con Grafana todavía semiautomática, no completamente automática
+* el tratamiento horario completo entre Grafana, ground truth y pipeline aún no está unificado de forma general
 
 ## Siguientes pasos
 
 Las siguientes líneas de trabajo previstas son:
 
-* ampliar el número de referencias válidas
+* ampliar el número de referencias y bloques temporales válidos
 * mejorar la cobertura útil del dataset
-* refinar la metodología de evaluación
+* construir atributos por ventana a partir de los HDF5/parquets ya alineados entre pies
+* preparar el siguiente paso de clasificación binaria `0 => no marcha`, `1 => sí marcha`
 * estudiar modelos de clasificación más avanzados a partir de una base de datos más robusta
+
