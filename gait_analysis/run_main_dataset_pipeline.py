@@ -19,7 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "-i",
         "--input",
-        default="salidas_test/reference_coverage_windows.csv",
+        default="experiment_configs/main_dataset_windows.csv",
         help="CSV con ventanas y columna use_for_main_dataset",
     )
     p.add_argument(
@@ -151,11 +151,24 @@ def main() -> None:
         ]
     )
 
+    binary_features_path = workdir / "main_binary_window_features.parquet"
+    run_cmd(
+        [
+            python_exe,
+            "gait_analysis/prepare_ml_dataset.py",
+            "-i",
+            str(wide_clean_path),
+            "-o",
+            str(binary_features_path),
+        ]
+    )
+
     print()
     print("Pipeline completado.")
     print(f"Dataset long combinado: {combined_path}")
     print(f"Dataset wide: {wide_path}")
     print(f"Dataset wide limpio: {wide_clean_path}")
+    print(f"Dataset binario ML: {binary_features_path}")
 
 
 if __name__ == "__main__":

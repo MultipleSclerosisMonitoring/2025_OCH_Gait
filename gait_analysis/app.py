@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Dict, List
+from types import TracebackType
+from typing import Dict, List, Optional, Type
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from gait_analysis.flux import FluxQueryBuilder
 from gait_analysis.influx_service import InfluxService
@@ -27,6 +30,29 @@ class ExtractApp:
         self._args = args
         self._config = config
         self._influx = InfluxService(config.influx)
+
+    def __enter__(self) -> "ExtractApp":
+        """Enter the extraction app context.
+
+        Returns:
+            Active app instance.
+        """
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        """Exit the app context and release external resources.
+
+        Args:
+            exc_type: Exception type raised inside the context, if any.
+            exc_value: Exception instance raised inside the context, if any.
+            traceback: Traceback raised inside the context, if any.
+        """
+        self.close()
 
     def _get_tz(self) -> str:
         """Return active timezone name.
@@ -139,12 +165,64 @@ class ExtractApp:
             - a common resampled time grid,
             - full windows only,
             - comparable time_center values for both feet.
+
+        Raises:
+            ValueError: If both feet have no common temporal intersection.
+            ValueError: If the common intersection cannot contain complete windows.
+            ValueError: If no output rows are generated.
+            ValueError: If the output extension is unsupported.
         """
         tz = self._get_tz()
         spec_cfg = self._config.spectrogram
         spectrum_engine = PowerSpectrumEngine(spec_cfg)
-        rows_right: List[Dict[str, object]] = []
-        rows_left: List[Dict[str, object]] = []
+        rows_right = 0
+        rows_left = 0
+        total_rows = 0
+        chunk_size = 5000
+        chunk_rows: List[Dict[str, object]] = []
+        excel_rows: List[Dict[str, object]] = []
+        parquet_writer: Optional[pq.ParquetWriter] = None
+        hdf_initialized = False
+
+        output_path = self._args.output.lower()
+        output_is_parquet = output_path.endswith(".parquet")
+        output_is_excel = output_path.endswith(".xlsx")
+        output_is_hdf = output_path.endswith(".h5") or output_path.endswith(".hdf5")
+        if not (output_is_parquet or output_is_excel or output_is_hdf):
+            raise ValueError(
+                "Formato de salida no soportado. Usa un fichero .parquet, .xlsx o .h5"
+            )
+
+        def flush_chunk() -> None:
+            """Write pending rows for chunk-friendly formats."""
+            nonlocal hdf_initialized, parquet_writer
+
+            if not chunk_rows:
+                return
+
+            if output_is_excel:
+                excel_rows.extend(chunk_rows)
+                chunk_rows.clear()
+                return
+
+            chunk_df = pd.DataFrame(chunk_rows)
+            if output_is_parquet:
+                table = pa.Table.from_pandas(chunk_df, preserve_index=False)
+                if parquet_writer is None:
+                    parquet_writer = pq.ParquetWriter(self._args.output, table.schema)
+                parquet_writer.write_table(table)
+            elif output_is_hdf:
+                chunk_df.to_hdf(
+                    self._args.output,
+                    key="spectrogram",
+                    mode="a" if hdf_initialized else "w",
+                    format="table",
+                    append=hdf_initialized,
+                    index=False,
+                )
+                hdf_initialized = True
+
+            chunk_rows.clear()
 
         requested_start_local = TimeProcessor.to_local_datetime(self._args.from_time, tz)
         requested_stop_local = TimeProcessor.to_local_datetime(self._args.until, tz)
@@ -266,7 +344,6 @@ class ExtractApp:
 
             for foot in spec_cfg.feet:
                 window_df = per_foot_windows[foot]
-                foot_rows = rows_right if foot.lower() == "right" else rows_left
 
                 for signal_name in spec_cfg.signals:
                     signal_values = window_df[signal_name].to_numpy(dtype=float)
@@ -282,34 +359,43 @@ class ExtractApp:
                         freqs=freqs,
                         powers=powers,
                     )
-                    foot_rows.append(row)
+                    chunk_rows.append(row)
+                    total_rows += 1
+                    if foot.lower() == "right":
+                        rows_right += 1
+                    else:
+                        rows_left += 1
 
-        all_rows = rows_right + rows_left
-        if not all_rows:
+                    if len(chunk_rows) >= chunk_size:
+                        flush_chunk()
+
+        flush_chunk()
+        if parquet_writer is not None:
+            parquet_writer.close()
+
+        if total_rows == 0:
             raise ValueError("No se han generado filas para el parquet.")
 
-        out_df = pd.DataFrame(all_rows)
-
-        output_path = self._args.output.lower()
-        if output_path.endswith(".parquet"):
-            out_df.to_parquet(self._args.output, index=False)
+        if output_is_parquet:
             print(f"Parquet guardado en: {self._args.output}")
-        elif output_path.endswith(".xlsx"):
+        elif output_is_excel:
+            out_df = pd.DataFrame(excel_rows)
             out_df.to_excel(self._args.output, index=False)
             print(f"Excel guardado en: {self._args.output}")
-        elif output_path.endswith(".h5") or output_path.endswith(".hdf5"):
-            out_df.to_hdf(self._args.output, key="spectrogram", mode="w")
+        elif output_is_hdf:
             print(f"HDF5 guardado en: {self._args.output}")
-        else:
-            raise ValueError(
-                "Formato de salida no soportado. Usa un fichero .parquet, .xlsx o .h5"
-            )
 
-        print(f"Filas totales: {len(out_df)}")
-        print(f"Right arriba: {len(rows_right)} filas")
-        print(f"Left abajo: {len(rows_left)} filas")
+        print(f"Filas totales: {total_rows}")
+        print(f"Right arriba: {rows_right} filas")
+        print(f"Left abajo: {rows_left} filas")
+
     def run(self) -> None:
-        """Run the selected mode."""
+        """Run the selected extraction mode.
+
+        Raises:
+            ValueError: If the selected mode is unsupported or the spectrogram
+                workflow cannot produce valid complete windows.
+        """
         if self._args.mode == "count":
             self.run_count()
         elif self._args.mode == "spectrogram":

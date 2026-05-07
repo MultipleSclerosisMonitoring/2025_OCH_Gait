@@ -13,12 +13,20 @@ class PowerSpectrumEngine:
     """Compute power spectra on centered windows."""
 
     def __init__(self, spec_cfg: SpectrogramConfig) -> None:
-        """Initialize the spectrum engine.
+        """Initialize and cache invariant spectral vectors.
 
         Args:
             spec_cfg: Spectral analysis configuration.
         """
         self._cfg = spec_cfg
+        self._expected_samples = int(round(spec_cfg.window_s * spec_cfg.resample_hz)) + 1
+        self._window = get_window(spec_cfg.window_type, self._expected_samples)
+        all_freqs = np.fft.rfftfreq(
+            self._expected_samples,
+            d=1.0 / spec_cfg.resample_hz,
+        )
+        self._freq_mask = all_freqs <= spec_cfg.fmax_hz
+        self._freqs = all_freqs[self._freq_mask]
 
     def compute(self, signal_values: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Compute power spectrum for one windowed signal.
@@ -31,27 +39,30 @@ class PowerSpectrumEngine:
 
         Raises:
             ValueError: If the input signal is empty.
+            ValueError: If the input length does not match the configured full window.
         """
         if signal_values.size == 0:
             raise ValueError("La señal de entrada está vacía.")
+        if signal_values.size != self._expected_samples:
+            raise ValueError(
+                "La señal de entrada no coincide con la ventana completa esperada: "
+                f"{signal_values.size} != {self._expected_samples}."
+            )
 
-        window = get_window(self._cfg.window_type, signal_values.size)
-        freqs, powers = periodogram(
+        _, powers = periodogram(
             signal_values,
             fs=self._cfg.resample_hz,
-            window=window,
+            window=self._window,
             scaling="density",
             detrend="constant",
         )
 
-        mask = freqs <= self._cfg.fmax_hz
-        freqs = freqs[mask]
-        powers = powers[mask]
+        powers = powers[self._freq_mask]
 
         if self._cfg.power_scale.lower() == "db":
             powers = 10.0 * np.log10(powers + 1e-12)
 
-        return freqs, powers
+        return self._freqs, powers
 
 
 class ParquetRowBuilder:

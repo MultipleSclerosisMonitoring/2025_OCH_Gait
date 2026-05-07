@@ -50,7 +50,7 @@ class CLI:
             default="salida.parquet",
             help=(
                 "Fichero de salida. En mode=count no se usa. "
-                "En mode=spectrogram actualmente se guarda en formato parquet."
+                "En mode=spectrogram se soportan .parquet, .xlsx, .h5 y .hdf5."
             ),
         )
         p.add_argument(

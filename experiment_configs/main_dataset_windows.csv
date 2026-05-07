@@ -1,0 +1,13 @@
+Reference,from_time,until_time,has_data,use_for_main_dataset,notes
+02548893X-118,2025-02-28 09:48:07,2025-02-28 10:02:23,True,False,valid Influx coverage but only not_walking; excluded from main combined dataset to avoid severe class imbalance
+04845288Q-121,2025-03-01 11:32:17,2025-03-01 11:40:40,True,True,expanded valid window with mixed walking and not_walking labels
+47046344M-104,2024-10-15 07:28:58,2024-10-15 07:31:52,True,True,used for labeled spectrogram test
+TABUENCA01-45,2024-04-25 16:14:50,2024-04-25 16:25:44,False,False,no data returned by Influx in tested range
+05447093A-110,2024-05-09 11:57:45,2024-05-09 11:58:01,False,False,no data returned by Influx in tested range
+05447093A-111,2024-05-09 12:20:19,2024-05-09 12:20:31,False,False,no data returned by Influx in tested range
+05447093A-112,2024-05-09 12:21:11,2024-05-09 12:21:24,False,False,no data returned by Influx in tested range
+330034-32,2025-02-25 11:29:22,2025-02-25 11:32:31,False,False,no data returned by Influx in tested range
+663495-44,2025-03-22 18:02:12,2025-03-22 18:04:27,False,False,no data returned by Influx in tested range
+47046344M-104,2024-10-15 07:31:53,2024-10-15 07:35:30,True,True,additional valid block with walking-only labeled coverage
+47046344M-104,2024-10-15 07:37:18,2024-10-15 07:40:11,True,True,additional valid block with mixed labels and strong walking coverage
+47046344M-104,2024-10-15 07:43:27,2024-10-15 07:46:48,True,True,additional valid block with strong walking coverage

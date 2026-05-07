@@ -17,7 +17,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "-i",
         "--input",
-        default="salidas_test/reference_coverage_windows.csv",
+        default="experiment_configs/main_dataset_windows.csv",
         help="CSV con referencias, ventanas y columna has_data",
     )
     p.add_argument(
@@ -52,7 +52,10 @@ def main() -> None:
         from_time = str(row["from_time"])
         until_time = str(row["until_time"])
         safe_ref = ref.replace("-", "_")
-        out_path = output_dir / f"{safe_ref}_window_1s.parquet"
+        safe_from = from_time.replace("-", "").replace(":", "").replace(" ", "_")
+        safe_until = until_time.replace("-", "").replace(":", "").replace(" ", "_")
+        block_id = f"{safe_ref}_{safe_from}_{safe_until}"
+        out_path = output_dir / f"{block_id}_window_1s.parquet"
 
         cmd = (
             "~/Library/Python/3.11/bin/poetry run python extract_influx_hdf5.py "

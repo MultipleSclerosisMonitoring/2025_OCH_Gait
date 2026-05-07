@@ -27,11 +27,10 @@ def main() -> None:
     """Program entry point."""
     args = CLI.parse()
     config = ConfigLoader(args.config).load()
-    app = ExtractApp(args=args, config=config)
-    app.run()
+    with ExtractApp(args=args, config=config) as app:
+        app.run()
 
 
 if __name__ == "__main__":
     main()
-
 

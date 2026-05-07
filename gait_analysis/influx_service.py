@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from types import TracebackType
+from typing import Any, Dict, List, Optional, Type
 
 import pandas as pd
 from influxdb_client import InfluxDBClient
+from influxdb_client.client.flux_table import FluxTable
 
 from gait_analysis.models import InfluxConfig
 
@@ -25,7 +27,30 @@ class InfluxService:
         )
         self._query_api = self._client.query_api()
 
-    def query(self, flux: str):
+    def __enter__(self) -> "InfluxService":
+        """Enter the InfluxDB service context.
+
+        Returns:
+            Active service instance.
+        """
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        """Exit the service context and close the underlying client.
+
+        Args:
+            exc_type: Exception type raised inside the context, if any.
+            exc_value: Exception instance raised inside the context, if any.
+            traceback: Traceback raised inside the context, if any.
+        """
+        self.close()
+
+    def query(self, flux: str) -> List[FluxTable]:
         """Execute a Flux query.
 
         Args:
@@ -36,8 +61,12 @@ class InfluxService:
         """
         return self._query_api.query(flux)
 
+    def close(self) -> None:
+        """Close the underlying InfluxDB client and release HTTP resources."""
+        self._client.close()
+
     @staticmethod
-    def count_records(tables) -> int:
+    def count_records(tables: List[FluxTable]) -> int:
         """Count total records in result tables.
 
         Args:
@@ -49,7 +78,7 @@ class InfluxService:
         return sum(len(t.records) for t in tables)
 
     @staticmethod
-    def tables_to_dataframe(tables) -> pd.DataFrame:
+    def tables_to_dataframe(tables: List[FluxTable]) -> pd.DataFrame:
         """Convert Influx tables to a pandas DataFrame.
 
         Args:

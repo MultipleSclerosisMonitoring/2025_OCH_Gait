@@ -22,6 +22,16 @@ class InfluxConfig:
     token: str
     verify_ssl: bool = False
 
+    def __post_init__(self) -> None:
+        """Validate InfluxDB connection values.
+
+        Raises:
+            ValueError: If any required connection field is empty.
+        """
+        for field_name in ["url", "org", "bucket", "token"]:
+            if not str(getattr(self, field_name)).strip():
+                raise ValueError(f"influxdb.{field_name} no puede estar vacío.")
+
 
 @dataclass(frozen=True)
 class SpectrogramConfig:
@@ -46,6 +56,39 @@ class SpectrogramConfig:
     signals: List[str]
     feet: List[str]
     resample_hz: float
+
+    def __post_init__(self) -> None:
+        """Validate spectral analysis values.
+
+        Raises:
+            ValueError: If numeric values are invalid or required lists are empty.
+        """
+        if self.window_s <= 0:
+            raise ValueError("spectrogram.window_s debe ser mayor que 0.")
+        if self.delta_t_s <= 0:
+            raise ValueError("spectrogram.delta_t_s debe ser mayor que 0.")
+        if self.resample_hz <= 0:
+            raise ValueError("spectrogram.resample_hz debe ser mayor que 0.")
+        if self.fmax_hz <= 0:
+            raise ValueError("spectrogram.fmax_hz debe ser mayor que 0.")
+        nyquist_hz = self.resample_hz / 2.0
+        if self.fmax_hz > nyquist_hz:
+            raise ValueError(
+                "spectrogram.fmax_hz no puede superar la frecuencia de Nyquist "
+                f"({nyquist_hz:g} Hz)."
+            )
+        if not self.window_type.strip():
+            raise ValueError("spectrogram.window_type no puede estar vacío.")
+        if self.power_scale.lower() not in {"db", "linear"}:
+            raise ValueError("spectrogram.power_scale debe ser 'db' o 'linear'.")
+        if not self.signals:
+            raise ValueError("spectrogram.signals debe contener al menos una señal.")
+        if not self.feet:
+            raise ValueError("spectrogram.feet debe contener al menos un pie.")
+        if any(not str(signal).strip() for signal in self.signals):
+            raise ValueError("spectrogram.signals contiene nombres vacíos.")
+        if any(not str(foot).strip() for foot in self.feet):
+            raise ValueError("spectrogram.feet contiene nombres vacíos.")
 
 
 @dataclass(frozen=True)
