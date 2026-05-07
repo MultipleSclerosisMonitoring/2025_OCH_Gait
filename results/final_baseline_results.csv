@@ -1,0 +1,5 @@
+dataset,validation,model,rows,walking_rows,not_walking_rows,groups,accuracy,f1_walking,recall_walking,notes
+main_binary_window_features,stratified_5fold_cv,logreg,1130,482,648,,0.6982,0.6580,0.6846,Exploratory random stratified CV; may overestimate generalization across nearby windows
+main_binary_window_features,stratified_5fold_cv,random_forest,1130,482,648,,0.7522,0.7026,0.6888,Best exploratory baseline on random stratified CV
+main_binary_window_features,temporal_block_leave_one_group_out,logreg,1130,482,648,9,0.4469,0.4568,0.7324,Conservative row-weighted evaluation leaving out complete temporal blocks
+main_binary_window_features,temporal_block_leave_one_group_out,random_forest,1130,482,648,9,0.4664,0.4080,0.5973,Conservative row-weighted evaluation leaving out complete temporal blocks
