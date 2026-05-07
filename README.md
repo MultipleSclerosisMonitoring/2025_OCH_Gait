@@ -122,6 +122,30 @@ El pipeline actual de espectrogramas trabaja de forma robusta sobre ambos pies:
 
 Este comportamiento evita ventanas parciales al final del rango y permite comparar ambos pies sobre una base temporal emparejada.
 
+## Robustez de ejecución
+
+El cliente de InfluxDB se gestiona con cierre explícito mediante gestor de contexto, de modo que las conexiones HTTP se liberan al terminar cada ejecución.
+
+La configuración YAML se valida al cargarla:
+
+* frecuencias y duraciones deben ser positivas
+* `fmax_hz` no puede superar la frecuencia de Nyquist
+* `signals` y `feet` no pueden estar vacíos
+* `power_scale` debe ser `db` o `linear`
+
+El motor espectral precalcula el vector de frecuencias y la ventana de análisis una sola vez a partir de `window_s` y `resample_hz`.
+
+Para salidas `.parquet` y `.h5` / `.hdf5`, `spectrogram` escribe por fragmentos durante el procesamiento. Esto evita acumular todo el resultado en memoria para extracciones largas. La salida `.xlsx` se mantiene como formato de inspección y se construye en memoria.
+
+Validación específica del intervalo `PRCHUG025-11` (`2026-02-09 22:31:30` a `2026-02-09 22:45:30`) con ventana de `10 s`:
+
+* filas HDF5 generadas: `9600`
+* `Right`: `4800` filas, `800` centros
+* `Left`: `4800` filas, `800` centros
+* mismos `time_center` en ambos pies: sí
+* rango de centros: `22:31:40.020` a `22:44:59.020`
+* valores nulos: `0`
+
 ## Formatos de salida soportados en `spectrogram`
 
 Según la extensión indicada en `--output`, actualmente se soportan:
@@ -129,6 +153,16 @@ Según la extensión indicada en `--output`, actualmente se soportan:
 * `.parquet`
 * `.xlsx`
 * `.h5` o `.hdf5`
+
+## Contrato de datos
+
+El contrato interno del pipeline real usa:
+
+* columna temporal `_time`
+* señales IMU con nombres `Ax`, `Ay`, `Az`, `Gx`, `Gy`, `Gz`
+* etiqueta de pie en el tag configurado por `foot_tag`
+
+Los scripts `consulta_mock.py` de raíz y `proyecto-espectrograma/consulta_mock.py` son utilidades históricas de simulación y no alimentan directamente el pipeline principal. Esos mocks usan `time` y señales en minúscula (`ax`, `ay`, etc.), por lo que no deben interpretarse como contrato actual de entrada para `gait_analysis`.
 
 ## Utilidades de ground truth
 
@@ -160,7 +194,7 @@ Estos scripts permiten:
 * transformar datasets etiquetados de formato `long` a formato `wide`
 * inspeccionar datasets preparados para ML
 * limpiar datasets `wide` eliminando filas con valores faltantes
-* preparar matrices de entrada y vectores objetivo para baselines
+* preparar atributos por ventana con objetivo binario `0` / `1`
 
 ## Integración con Grafana
 
@@ -195,9 +229,14 @@ El flujo actual de preparación de datos incluye:
 7. combinación de referencias válidas y bloques temporales válidos
 8. transformación del dataset a formato `wide`
 9. limpieza del dataset `wide`
-10. preparación del dataset final para aprendizaje automático
+10. preparación del dataset final para aprendizaje automático con `target` binario
 
 En el formato `wide`, cada fila representa un centro temporal de ventana y contiene las variables espectrales de potencia asociadas a cada combinación de pie y señal.
+
+El dataset binario preparado conserva los identificadores de ventana, añade `target` y mantiene las columnas espectrales como atributos:
+
+* `not_walking` => `0`
+* `walking` => `1`
 
 ## Baselines iniciales
 
@@ -205,9 +244,9 @@ Se han ejecutado baselines simples sobre el dataset principal en formato `wide` 
 
 Dataset actual usado para clasificación:
 
-* muestras totales: `844`
-* `not_walking`: `616`
-* `walking`: `228`
+* muestras totales: `1130`
+* `not_walking`: `648`
+* `walking`: `482`
 
 Modelos comparados:
 
@@ -215,23 +254,39 @@ Modelos comparados:
 * Logistic Regression
 * Random Forest
 
-En la versión robusta actual del dataset, la **Logistic Regression** se mantiene como el baseline más útil para este problema, ya que ofrece mejor capacidad para detectar la clase `walking`.
+En la versión ampliada actual del dataset, **Random Forest** obtiene mayor accuracy y mejores métricas de la clase `walking` que la Logistic Regression.
 
 Resultados principales del dataset final actual:
 
 * **Logistic Regression**
 
-  * accuracy: `0.7145`
-  * `F1-score (walking)`: `0.5503`
-  * `recall (walking)`: `0.6494`
+  * accuracy: `0.6982`
+  * `F1-score (walking)`: `0.6580`
+  * `recall (walking)`: `0.6846`
 
 * **Random Forest**
 
-  * accuracy: `0.7891`
-  * `F1-score (walking)`: `0.4982`
-  * `recall (walking)`: `0.3901`
+  * accuracy: `0.7522`
+  * `F1-score (walking)`: `0.7026`
+  * `recall (walking)`: `0.6888`
 
-La principal conclusión es que **la accuracy por sí sola no es suficiente** para evaluar este problema. Aunque Random Forest obtiene mayor accuracy, Logistic Regression detecta mejor la clase `walking`, por lo que actualmente se considera el baseline principal del proyecto.
+La principal conclusión es que **la accuracy por sí sola no es suficiente** para evaluar este problema. La ampliación de segmentos `walking` mejora la señal útil de ambos baselines, especialmente el `F1-score` de la clase positiva.
+
+También se ha añadido una validación más conservadora por bloques temporales completos, usando Leave-One-Group-Out sobre bloques inferidos por saltos temporales. Esta evaluación evita mezclar ventanas temporalmente contiguas entre entrenamiento y test, por lo que sus resultados son más duros:
+
+* **Logistic Regression agrupada**
+
+  * accuracy ponderada por filas: `0.4469`
+  * `F1-score (walking)` ponderado por filas: `0.4568`
+  * `recall (walking)` ponderado por filas: `0.7324`
+
+* **Random Forest agrupado**
+
+  * accuracy ponderada por filas: `0.4664`
+  * `F1-score (walking)` ponderado por filas: `0.4080`
+  * `recall (walking)` ponderado por filas: `0.5973`
+
+Esta diferencia indica que la validación estratificada aleatoria probablemente sobreestima la generalización, porque ventanas próximas comparten mucha estructura temporal.
 
 ## Documentación
 
@@ -310,6 +365,7 @@ Módulos base del paquete:
 * `gait_analysis/run_baseline_logreg.py`
 * `gait_analysis/run_baseline_logreg_cv.py`
 * `gait_analysis/run_baseline_rf_cv.py`
+* `gait_analysis/run_baseline_grouped_cv.py`
 * `gait_analysis/write_baseline_summary.py`
 
 ### Pipeline maestro
@@ -323,6 +379,29 @@ Este script automatiza el flujo principal de:
 * combinación
 * paso a `wide`
 * limpieza final
+* generación del dataset binario por ventana
+
+La definición versionada de los bloques usados por el dataset principal está en:
+
+* `experiment_configs/main_dataset_windows.csv`
+
+El pipeline se regenera con:
+
+```text
+poetry run python gait_analysis/run_main_dataset_pipeline.py
+```
+
+Los baselines principales se regeneran con:
+
+```text
+poetry run python gait_analysis/run_baseline_logreg_cv.py -i salidas_test/auto_extracts/main_combined_labeled_dataset_wide_clean.parquet
+poetry run python gait_analysis/run_baseline_rf_cv.py -i salidas_test/auto_extracts/main_combined_labeled_dataset_wide_clean.parquet
+poetry run python gait_analysis/run_baseline_grouped_cv.py -i salidas_test/auto_extracts/main_binary_window_features.parquet -o salidas_test/grouped_baseline_results.csv
+```
+
+La tabla final versionada de resultados está en:
+
+* `results/final_baseline_results.csv`
 
 ## Artefactos principales generados
 
@@ -349,26 +428,42 @@ Ficheros relevantes generados actualmente en `salidas_test/` y `salidas_test/aut
 * `salidas_test/auto_extracts/main_combined_labeled_dataset_wide_clean.parquet`
   Dataset limpio en formato `wide` usado para los baselines actuales.
 
+* `salidas_test/auto_extracts/main_binary_window_features.parquet`
+  Dataset preparado para clasificación binaria, con `target=0` para `not_walking` y `target=1` para `walking`.
+
 * `salidas_test/final_baseline_results_robust_pipeline.csv`
   Resumen final de resultados de baselines sobre la versión robusta del pipeline.
+
+* `salidas_test/grouped_baseline_results.csv`
+  Resultados por fold de la validación agrupada por bloques temporales.
+
+Ficheros versionados de referencia metodológica:
+
+* `experiment_configs/main_dataset_windows.csv`
+  Definición reproducible de los bloques temporales usados por el dataset principal.
+
+* `results/final_baseline_results.csv`
+  Tabla final de resultados comparando validación estratificada aleatoria y validación agrupada por bloques temporales.
 
 ## Artefactos de referencia recomendados
 
 En el estado actual del proyecto, los ficheros de referencia principales son:
 
+* `experiment_configs/main_dataset_windows.csv`
+* `results/final_baseline_results.csv`
 * `salidas_test/ground_truth_clean.xlsx`
 * `salidas_test/reference_coverage_summary.csv`
 * `salidas_test/window_experiment_summary.csv`
 * `salidas_test/auto_extracts/main_combined_labeled_dataset.parquet`
 * `salidas_test/auto_extracts/main_combined_labeled_dataset_wide_clean.parquet`
-* `salidas_test/final_baseline_results_robust_pipeline.csv`
+* `salidas_test/auto_extracts/main_binary_window_features.parquet`
 
 ## Limitaciones actuales
 
 Por ahora, las principales limitaciones detectadas son:
 
 * número limitado de referencias con cobertura válida en InfluxDB
-* desbalance entre las clases `walking` y `not_walking`
+* dataset aún basado en pocos sujetos y bloques temporales
 * integración con Grafana todavía semiautomática, no completamente automática
 * el tratamiento horario completo entre Grafana, ground truth y pipeline aún no está unificado de forma general
 
@@ -378,7 +473,6 @@ Las siguientes líneas de trabajo previstas son:
 
 * ampliar el número de referencias y bloques temporales válidos
 * mejorar la cobertura útil del dataset
-* construir atributos por ventana a partir de los HDF5/parquets ya alineados entre pies
-* preparar el siguiente paso de clasificación binaria `0 => no marcha`, `1 => sí marcha`
+* validar por sujeto cuando haya más sujetos con cobertura real
+* añadir atributos agregados por ventana además de las potencias espectrales
 * estudiar modelos de clasificación más avanzados a partir de una base de datos más robusta
-
