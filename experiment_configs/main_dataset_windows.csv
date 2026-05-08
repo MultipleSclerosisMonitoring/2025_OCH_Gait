@@ -1,5 +1,6 @@
 Reference,from_time,until_time,has_data,use_for_main_dataset,notes
 02548893X-118,2025-02-28 09:48:07,2025-02-28 10:02:23,True,False,valid Influx coverage but only not_walking; excluded from main combined dataset to avoid severe class imbalance
+02548893X-118,2025-02-28 09:48:07,2025-02-28 09:50:07,True,True,short third-reference not_walking block to add subject diversity without severe imbalance
 04845288Q-121,2025-03-01 11:32:17,2025-03-01 11:40:40,True,True,expanded valid window with mixed walking and not_walking labels
 47046344M-104,2024-10-15 07:28:58,2024-10-15 07:31:52,True,True,used for labeled spectrogram test
 TABUENCA01-45,2024-04-25 16:14:50,2024-04-25 16:25:44,False,False,no data returned by Influx in tested range
@@ -11,3 +12,4 @@ TABUENCA01-45,2024-04-25 16:14:50,2024-04-25 16:25:44,False,False,no data return
 47046344M-104,2024-10-15 07:31:53,2024-10-15 07:35:30,True,True,additional valid block with walking-only labeled coverage
 47046344M-104,2024-10-15 07:37:18,2024-10-15 07:40:11,True,True,additional valid block with mixed labels and strong walking coverage
 47046344M-104,2024-10-15 07:43:27,2024-10-15 07:46:48,True,True,additional valid block with strong walking coverage
+47046344M-104,2024-10-15 07:47:57,2024-10-15 07:48:44,True,True,additional valid walking block with data in both feet

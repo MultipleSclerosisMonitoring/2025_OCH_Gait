@@ -244,9 +244,9 @@ Se han ejecutado baselines simples sobre el dataset principal en formato `wide` 
 
 Dataset actual usado para clasificación:
 
-* muestras totales: `1130`
-* `not_walking`: `648`
-* `walking`: `482`
+* muestras totales: `1293`
+* `not_walking`: `766`
+* `walking`: `527`
 
 Modelos comparados:
 
@@ -260,15 +260,15 @@ Resultados principales del dataset final actual:
 
 * **Logistic Regression**
 
-  * accuracy: `0.6982`
-  * `F1-score (walking)`: `0.6580`
-  * `recall (walking)`: `0.6846`
+  * accuracy: `0.6960`
+  * `F1-score (walking)`: `0.6474`
+  * `recall (walking)`: `0.6849`
 
 * **Random Forest**
 
-  * accuracy: `0.7522`
-  * `F1-score (walking)`: `0.7026`
-  * `recall (walking)`: `0.6888`
+  * accuracy: `0.7672`
+  * `F1-score (walking)`: `0.7092`
+  * `recall (walking)`: `0.6963`
 
 La principal conclusión es que **la accuracy por sí sola no es suficiente** para evaluar este problema. La ampliación de segmentos `walking` mejora la señal útil de ambos baselines, especialmente el `F1-score` de la clase positiva.
 
@@ -276,15 +276,15 @@ También se ha añadido una validación más conservadora por bloques temporales
 
 * **Logistic Regression agrupada**
 
-  * accuracy ponderada por filas: `0.4469`
-  * `F1-score (walking)` ponderado por filas: `0.4568`
-  * `recall (walking)` ponderado por filas: `0.7324`
+  * accuracy ponderada por filas: `0.5228`
+  * `F1-score (walking)` ponderado por filas: `0.4144`
+  * `recall (walking)` ponderado por filas: `0.5698`
 
 * **Random Forest agrupado**
 
-  * accuracy ponderada por filas: `0.4664`
-  * `F1-score (walking)` ponderado por filas: `0.4080`
-  * `recall (walking)` ponderado por filas: `0.5973`
+  * accuracy ponderada por filas: `0.5553`
+  * `F1-score (walking)` ponderado por filas: `0.3918`
+  * `recall (walking)` ponderado por filas: `0.5079`
 
 Esta diferencia indica que la validación estratificada aleatoria probablemente sobreestima la generalización, porque ventanas próximas comparten mucha estructura temporal.
 
