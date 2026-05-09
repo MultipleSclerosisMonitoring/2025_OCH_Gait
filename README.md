@@ -290,7 +290,7 @@ Esta diferencia indica que la validación estratificada aleatoria probablemente 
 
 ## Modelo final
 
-El modelo final actual se entrena sobre todo el dataset binario preparado, usando el baseline con mejor comportamiento exploratorio: **Random Forest** con `class_weight="balanced"`.
+El modelo final actual se entrena sobre todo el dataset binario preparado, usando una versión conservadora del baseline con mejor comportamiento exploratorio: **Random Forest** con `class_weight="balanced"`, profundidad limitada y hojas mínimas de 10 muestras para reducir sobreajuste entre ventanas próximas.
 
 Entrenamiento:
 
@@ -330,10 +330,10 @@ Esta evaluación usa Leave-One-Group-Out por bloques temporales completos y gene
 
 Resultados principales de la evaluación por bloques del modelo final:
 
-* accuracy out-of-fold: `0.5553`
-* `F1-score (walking)` out-of-fold: `0.5196`
-* recall out-of-fold (`walking`): `0.5901`
-* matriz de confusión (`not_walking`, `walking`): `[[407, 359], [216, 311]]`
+* accuracy out-of-fold: `0.5800`
+* `F1-score (walking)` out-of-fold: `0.6079`
+* recall out-of-fold (`walking`): `0.7989`
+* matriz de confusión (`not_walking`, `walking`): `[[329, 437], [106, 421]]`
 
 ## Documentación
 

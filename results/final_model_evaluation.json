@@ -15,14 +15,14 @@
   },
   "evaluation": "temporal_block_leave_one_group_out",
   "weighted_mean_metrics": {
-    "accuracy": 0.5553,
-    "f1_walking": 0.3918,
-    "recall_walking": 0.5079
+    "accuracy": 0.58,
+    "f1_walking": 0.4519,
+    "recall_walking": 0.6336
   },
   "out_of_fold_metrics": {
-    "accuracy": 0.5553,
-    "f1_walking": 0.5196,
-    "recall_walking": 0.5901
+    "accuracy": 0.58,
+    "f1_walking": 0.6079,
+    "recall_walking": 0.7989
   },
   "confusion_matrix": {
     "labels": [
@@ -31,102 +31,102 @@
     ],
     "matrix": [
       [
-        407,
-        359
+        329,
+        437
       ],
       [
-        216,
-        311
+        106,
+        421
       ]
     ]
   },
   "classification_report": {
     "not_walking": {
-      "precision": 0.6532905296950241,
-      "recall": 0.5313315926892951,
-      "f1-score": 0.5860331173506119,
+      "precision": 0.7563218390804598,
+      "recall": 0.42950391644908614,
+      "f1-score": 0.5478767693588676,
       "support": 766.0
     },
     "walking": {
-      "precision": 0.46417910447761196,
-      "recall": 0.5901328273244781,
-      "f1-score": 0.5196324143692564,
+      "precision": 0.49067599067599066,
+      "recall": 0.7988614800759013,
+      "f1-score": 0.607942238267148,
       "support": 527.0
     },
-    "accuracy": 0.5552977571539056,
+    "accuracy": 0.580046403712297,
     "macro avg": {
-      "precision": 0.558734817086318,
-      "recall": 0.5607322100068866,
-      "f1-score": 0.5528327658599341,
+      "precision": 0.6234989148782253,
+      "recall": 0.6141826982624937,
+      "f1-score": 0.5779095038130078,
       "support": 1293.0
     },
     "weighted avg": {
-      "precision": 0.5762126324873086,
-      "recall": 0.5552977571539056,
-      "f1-score": 0.5589695671022172,
+      "precision": 0.6480500973100382,
+      "recall": 0.580046403712297,
+      "f1-score": 0.5723582095094196,
       "support": 1293.0
     }
   },
   "top_features": [
     {
       "feature": "Right_Gz_p_003",
-      "importance": 0.03378685150789389
-    },
-    {
-      "feature": "Right_Ax_p_001",
-      "importance": 0.032764592022453326
-    },
-    {
-      "feature": "Right_Gz_p_001",
-      "importance": 0.03017959807140353
-    },
-    {
-      "feature": "Right_Ax_p_003",
-      "importance": 0.02975249219135626
+      "importance": 0.05698694243633909
     },
     {
       "feature": "Right_Gz_p_002",
-      "importance": 0.029424475551699688
+      "importance": 0.05012240953579344
     },
     {
-      "feature": "Right_Gz_p_000",
-      "importance": 0.027148212785990524
+      "feature": "Right_Ax_p_001",
+      "importance": 0.048384703869370084
+    },
+    {
+      "feature": "Right_Ax_p_003",
+      "importance": 0.04696452336031729
+    },
+    {
+      "feature": "Right_Gz_p_001",
+      "importance": 0.04626070257668031
     },
     {
       "feature": "Right_Ax_p_002",
-      "importance": 0.02693724094740185
+      "importance": 0.04441817392475444
+    },
+    {
+      "feature": "Right_Gz_p_000",
+      "importance": 0.04224307175122344
     },
     {
       "feature": "Right_Ax_p_005",
-      "importance": 0.021975541190271664
+      "importance": 0.03258821594105876
     },
     {
       "feature": "Right_Ax_p_000",
-      "importance": 0.0218257473253814
+      "importance": 0.028258865749276676
     },
     {
       "feature": "Left_Gx_p_003",
-      "importance": 0.018137096673892763
+      "importance": 0.022985193727157537
     },
     {
-      "feature": "Right_Ay_p_005",
-      "importance": 0.018107973225879058
-    },
-    {
-      "feature": "Right_Gz_p_004",
-      "importance": 0.016319240679020856
+      "feature": "Left_Gy_p_001",
+      "importance": 0.020819347306823614
     },
     {
       "feature": "Left_Ay_p_004",
-      "importance": 0.015333964733481508
+      "importance": 0.019433024186776005
+    },
+    {
+      "feature": "Right_Gy_p_001",
+      "importance": 0.01854369153685982
     },
     {
       "feature": "Left_Gy_p_005",
-      "importance": 0.014851238683032003
+      "importance": 0.016867987638829397
     },
     {
-      "feature": "Right_Ax_p_004",
-      "importance": 0.014777321368396833
+      "feature": "Right_Ay_p_005",
+      "importance": 0.016611617834046716
     }
   ]
 }

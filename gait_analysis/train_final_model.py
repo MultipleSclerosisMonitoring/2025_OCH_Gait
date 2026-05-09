@@ -48,9 +48,12 @@ def build_parser() -> argparse.ArgumentParser:
 def build_model() -> RandomForestClassifier:
     """Return the selected final model with fixed parameters."""
     return RandomForestClassifier(
-        n_estimators=200,
+        n_estimators=300,
         random_state=42,
         class_weight="balanced",
+        max_depth=5,
+        min_samples_leaf=10,
+        max_features="sqrt",
     )
 
 
@@ -101,6 +104,9 @@ def main() -> None:
             "n_estimators": model.n_estimators,
             "random_state": model.random_state,
             "class_weight": model.class_weight,
+            "max_depth": model.max_depth,
+            "min_samples_leaf": model.min_samples_leaf,
+            "max_features": model.max_features,
         },
         "training_metrics": {
             "accuracy": round(float(accuracy_score(y, y_pred)), 4),
