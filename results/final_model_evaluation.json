@@ -1,0 +1,132 @@
+{
+  "input": "salidas_test/auto_extracts/main_binary_window_features.parquet",
+  "model": "models/final_random_forest_model.joblib",
+  "rows": 1293,
+  "feature_columns": 72,
+  "groups": 11,
+  "references": [
+    "02548893X-118",
+    "04845288Q-121",
+    "47046344M-104"
+  ],
+  "class_counts": {
+    "not_walking": 766,
+    "walking": 527
+  },
+  "evaluation": "temporal_block_leave_one_group_out",
+  "weighted_mean_metrics": {
+    "accuracy": 0.5553,
+    "f1_walking": 0.3918,
+    "recall_walking": 0.5079
+  },
+  "out_of_fold_metrics": {
+    "accuracy": 0.5553,
+    "f1_walking": 0.5196,
+    "recall_walking": 0.5901
+  },
+  "confusion_matrix": {
+    "labels": [
+      "not_walking",
+      "walking"
+    ],
+    "matrix": [
+      [
+        407,
+        359
+      ],
+      [
+        216,
+        311
+      ]
+    ]
+  },
+  "classification_report": {
+    "not_walking": {
+      "precision": 0.6532905296950241,
+      "recall": 0.5313315926892951,
+      "f1-score": 0.5860331173506119,
+      "support": 766.0
+    },
+    "walking": {
+      "precision": 0.46417910447761196,
+      "recall": 0.5901328273244781,
+      "f1-score": 0.5196324143692564,
+      "support": 527.0
+    },
+    "accuracy": 0.5552977571539056,
+    "macro avg": {
+      "precision": 0.558734817086318,
+      "recall": 0.5607322100068866,
+      "f1-score": 0.5528327658599341,
+      "support": 1293.0
+    },
+    "weighted avg": {
+      "precision": 0.5762126324873086,
+      "recall": 0.5552977571539056,
+      "f1-score": 0.5589695671022172,
+      "support": 1293.0
+    }
+  },
+  "top_features": [
+    {
+      "feature": "Right_Gz_p_003",
+      "importance": 0.03378685150789389
+    },
+    {
+      "feature": "Right_Ax_p_001",
+      "importance": 0.032764592022453326
+    },
+    {
+      "feature": "Right_Gz_p_001",
+      "importance": 0.03017959807140353
+    },
+    {
+      "feature": "Right_Ax_p_003",
+      "importance": 0.02975249219135626
+    },
+    {
+      "feature": "Right_Gz_p_002",
+      "importance": 0.029424475551699688
+    },
+    {
+      "feature": "Right_Gz_p_000",
+      "importance": 0.027148212785990524
+    },
+    {
+      "feature": "Right_Ax_p_002",
+      "importance": 0.02693724094740185
+    },
+    {
+      "feature": "Right_Ax_p_005",
+      "importance": 0.021975541190271664
+    },
+    {
+      "feature": "Right_Ax_p_000",
+      "importance": 0.0218257473253814
+    },
+    {
+      "feature": "Left_Gx_p_003",
+      "importance": 0.018137096673892763
+    },
+    {
+      "feature": "Right_Ay_p_005",
+      "importance": 0.018107973225879058
+    },
+    {
+      "feature": "Right_Gz_p_004",
+      "importance": 0.016319240679020856
+    },
+    {
+      "feature": "Left_Ay_p_004",
+      "importance": 0.015333964733481508
+    },
+    {
+      "feature": "Left_Gy_p_005",
+      "importance": 0.014851238683032003
+    },
+    {
+      "feature": "Right_Ax_p_004",
+      "importance": 0.014777321368396833
+    }
+  ]
+}

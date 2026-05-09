@@ -308,6 +308,33 @@ Este comando genera:
 
 Las métricas de rendimiento que deben reportarse siguen siendo las de validación cruzada y validación por bloques descritas en la sección anterior. Las métricas internas del resumen del modelo están calculadas sobre el conjunto completo usado para entrenar y solo sirven como comprobación de ajuste, no como estimación de generalización.
 
+La evaluación reportable del modelo final se genera con:
+
+```bash
+poetry run python gait_analysis/evaluate_final_model.py
+```
+
+Esta evaluación usa Leave-One-Group-Out por bloques temporales completos y genera:
+
+* `results/final_model_evaluation.json`
+  Resumen agregado con métricas out-of-fold, matriz de confusión e informe de clasificación.
+
+* `results/final_model_grouped_cv_results.csv`
+  Métricas por bloque temporal.
+
+* `results/final_model_grouped_cv_predictions.csv`
+  Predicciones out-of-fold por ventana.
+
+* `results/final_model_feature_importances.csv`
+  Importancia de las variables del Random Forest final.
+
+Resultados principales de la evaluación por bloques del modelo final:
+
+* accuracy out-of-fold: `0.5553`
+* `F1-score (walking)` out-of-fold: `0.5196`
+* recall out-of-fold (`walking`): `0.5901`
+* matriz de confusión (`not_walking`, `walking`): `[[407, 359], [216, 311]]`
+
 ## Documentación
 
 La documentación con Sphinx está en:
@@ -387,6 +414,7 @@ Módulos base del paquete:
 * `gait_analysis/run_baseline_rf_cv.py`
 * `gait_analysis/run_baseline_grouped_cv.py`
 * `gait_analysis/train_final_model.py`
+* `gait_analysis/evaluate_final_model.py`
 * `gait_analysis/write_baseline_summary.py`
 
 ### Pipeline maestro
@@ -426,6 +454,12 @@ El modelo final se entrena y guarda con:
 poetry run python gait_analysis/train_final_model.py
 ```
 
+La evaluación reportable del modelo final se genera con:
+
+```text
+poetry run python gait_analysis/evaluate_final_model.py
+```
+
 La tabla final versionada de resultados está en:
 
 * `results/final_baseline_results.csv`
@@ -433,6 +467,13 @@ La tabla final versionada de resultados está en:
 El resumen versionado del modelo final está en:
 
 * `results/final_model_summary.json`
+
+Los artefactos versionados de evaluación del modelo final están en:
+
+* `results/final_model_evaluation.json`
+* `results/final_model_grouped_cv_results.csv`
+* `results/final_model_grouped_cv_predictions.csv`
+* `results/final_model_feature_importances.csv`
 
 ## Artefactos principales generados
 
