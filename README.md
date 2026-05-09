@@ -288,6 +288,26 @@ También se ha añadido una validación más conservadora por bloques temporales
 
 Esta diferencia indica que la validación estratificada aleatoria probablemente sobreestima la generalización, porque ventanas próximas comparten mucha estructura temporal.
 
+## Modelo final
+
+El modelo final actual se entrena sobre todo el dataset binario preparado, usando el baseline con mejor comportamiento exploratorio: **Random Forest** con `class_weight="balanced"`.
+
+Entrenamiento:
+
+```bash
+poetry run python gait_analysis/train_final_model.py
+```
+
+Este comando genera:
+
+* `models/final_random_forest_model.joblib`
+  Artefacto serializado con el modelo entrenado, columnas de entrada y mapa de clases.
+
+* `results/final_model_summary.json`
+  Resumen reproducible del entrenamiento, incluyendo filas, referencias, columnas de atributos y configuración del modelo.
+
+Las métricas de rendimiento que deben reportarse siguen siendo las de validación cruzada y validación por bloques descritas en la sección anterior. Las métricas internas del resumen del modelo están calculadas sobre el conjunto completo usado para entrenar y solo sirven como comprobación de ajuste, no como estimación de generalización.
+
 ## Documentación
 
 La documentación con Sphinx está en:
@@ -366,6 +386,7 @@ Módulos base del paquete:
 * `gait_analysis/run_baseline_logreg_cv.py`
 * `gait_analysis/run_baseline_rf_cv.py`
 * `gait_analysis/run_baseline_grouped_cv.py`
+* `gait_analysis/train_final_model.py`
 * `gait_analysis/write_baseline_summary.py`
 
 ### Pipeline maestro
@@ -399,9 +420,19 @@ poetry run python gait_analysis/run_baseline_rf_cv.py -i salidas_test/auto_extra
 poetry run python gait_analysis/run_baseline_grouped_cv.py -i salidas_test/auto_extracts/main_binary_window_features.parquet -o salidas_test/grouped_baseline_results.csv
 ```
 
+El modelo final se entrena y guarda con:
+
+```text
+poetry run python gait_analysis/train_final_model.py
+```
+
 La tabla final versionada de resultados está en:
 
 * `results/final_baseline_results.csv`
+
+El resumen versionado del modelo final está en:
+
+* `results/final_model_summary.json`
 
 ## Artefactos principales generados
 
