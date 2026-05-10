@@ -253,6 +253,8 @@ Modelos comparados:
 * clasificador trivial
 * Logistic Regression
 * Random Forest
+* XGBoost
+* CatBoost
 
 En la versión ampliada actual del dataset, **Random Forest** obtiene mayor accuracy y mejores métricas de la clase `walking` que la Logistic Regression.
 
@@ -287,6 +289,33 @@ También se ha añadido una validación más conservadora por bloques temporales
   * `recall (walking)` ponderado por filas: `0.5079`
 
 Esta diferencia indica que la validación estratificada aleatoria probablemente sobreestima la generalización, porque ventanas próximas comparten mucha estructura temporal.
+
+También se ha añadido una comparación de modelos de aprendizaje automático con **Cross Validation estratificada de 3 folds**, siguiendo la evaluación solicitada para Random Forest, XGBoost y CatBoost. En esta comparación se calculan accuracy, precision, recall y F1-score, incluyendo media y desviación estándar por modelo.
+
+Resultados principales para la clase `walking`:
+
+* **Random Forest conservador**
+
+  * accuracy: `0.7394 ± 0.0117`
+  * precision (`walking`): `0.6497 ± 0.0205`
+  * recall (`walking`): `0.7856 ± 0.0327`
+  * `F1-score (walking)`: `0.7107 ± 0.0101`
+
+* **XGBoost**
+
+  * accuracy: `0.7618 ± 0.0119`
+  * precision (`walking`): `0.6886 ± 0.0106`
+  * recall (`walking`): `0.7590 ± 0.0481`
+  * `F1-score (walking)`: `0.7216 ± 0.0221`
+
+* **CatBoost**
+
+  * accuracy: `0.7579 ± 0.0149`
+  * precision (`walking`): `0.6847 ± 0.0118`
+  * recall (`walking`): `0.7534 ± 0.0597`
+  * `F1-score (walking)`: `0.7166 ± 0.0265`
+
+En esta comparación, XGBoost obtiene el mejor rendimiento medio en accuracy y F1-score de la clase `walking`, aunque Random Forest conserva el mejor recall medio para detectar marcha.
 
 ## Modelo final
 
@@ -413,6 +442,7 @@ Módulos base del paquete:
 * `gait_analysis/run_baseline_logreg_cv.py`
 * `gait_analysis/run_baseline_rf_cv.py`
 * `gait_analysis/run_baseline_grouped_cv.py`
+* `gait_analysis/run_ml_model_comparison_cv3.py`
 * `gait_analysis/train_final_model.py`
 * `gait_analysis/evaluate_final_model.py`
 * `gait_analysis/write_baseline_summary.py`
@@ -448,6 +478,12 @@ poetry run python gait_analysis/run_baseline_rf_cv.py -i salidas_test/auto_extra
 poetry run python gait_analysis/run_baseline_grouped_cv.py -i salidas_test/auto_extracts/main_binary_window_features.parquet -o salidas_test/grouped_baseline_results.csv
 ```
 
+La comparativa de Random Forest, XGBoost y CatBoost con Cross Validation de 3 folds se regenera con:
+
+```text
+poetry run python gait_analysis/run_ml_model_comparison_cv3.py
+```
+
 El modelo final se entrena y guarda con:
 
 ```text
@@ -463,6 +499,11 @@ poetry run python gait_analysis/evaluate_final_model.py
 La tabla final versionada de resultados está en:
 
 * `results/final_baseline_results.csv`
+
+La comparativa versionada de modelos ML con CV=3 está en:
+
+* `results/ml_model_comparison_cv3_folds.csv`
+* `results/ml_model_comparison_cv3_summary.csv`
 
 El resumen versionado del modelo final está en:
 
