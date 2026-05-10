@@ -52,6 +52,7 @@ class ConfigLoader:
             bucket=influx_raw["bucket"],
             token=influx_raw["token"],
             verify_ssl=bool(influx_raw.get("verify_ssl", False)),
+            timeout=int(influx_raw.get("timeout", 10000)),
         )
 
         default_tz = (cfg.get("Location") or {}).get("zoneInfo")

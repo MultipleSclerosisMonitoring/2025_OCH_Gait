@@ -14,6 +14,7 @@ class InfluxConfig:
         bucket: Bucket name.
         token: Access token.
         verify_ssl: Whether SSL certificates are verified.
+        timeout: HTTP timeout in milliseconds.
     """
 
     url: str
@@ -21,6 +22,7 @@ class InfluxConfig:
     bucket: str
     token: str
     verify_ssl: bool = False
+    timeout: int = 10000
 
     def __post_init__(self) -> None:
         """Validate InfluxDB connection values.

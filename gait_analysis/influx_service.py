@@ -24,6 +24,7 @@ class InfluxService:
             token=cfg.token,
             org=cfg.org,
             verify_ssl=cfg.verify_ssl,
+            timeout=cfg.timeout,
         )
         self._query_api = self._client.query_api()
 

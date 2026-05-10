@@ -581,6 +581,9 @@ Ficheros versionados de referencia metodológica:
 * `experiment_configs/main_dataset_windows.csv`
   Definición reproducible de los bloques temporales usados por el dataset principal.
 
+* `experiment_configs/sequence_evaluation_windows.csv`
+  Candidatos no vistos para evaluar la inferencia por ventana móvil sobre secuencias temporales. Incluye segmentos de pacientes ya presentes y de pacientes nuevos, pendientes de confirmar con InfluxDB cuando haya conectividad estable.
+
 * `results/final_baseline_results.csv`
   Tabla final de resultados comparando validación estratificada aleatoria y validación agrupada por bloques temporales.
 
@@ -589,6 +592,7 @@ Ficheros versionados de referencia metodológica:
 En el estado actual del proyecto, los ficheros de referencia principales son:
 
 * `experiment_configs/main_dataset_windows.csv`
+* `experiment_configs/sequence_evaluation_windows.csv`
 * `results/final_baseline_results.csv`
 * `salidas_test/ground_truth_clean.xlsx`
 * `salidas_test/reference_coverage_summary.csv`
