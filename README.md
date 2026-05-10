@@ -383,6 +383,14 @@ Este comando aplica la forma de uso final del clasificador: extrae una secuencia
 
 Si el espectrograma ya se ha extraído previamente, se puede omitir la consulta a InfluxDB con `--spectrogram-input`.
 
+Cuando existan segmentos marcados como `use_for_sequence_eval=True` en `experiment_configs/sequence_evaluation_windows.csv`, la evaluación automática contra ground truth se ejecuta con:
+
+```bash
+poetry run python gait_analysis/run_sequence_evaluation.py
+```
+
+Este script lanza la inferencia por ventana móvil para cada segmento, cruza cada `time_center` con `ground_truth_clean.xlsx` y genera métricas por segmento y agregadas.
+
 ## Documentación
 
 La documentación con Sphinx está en:
@@ -465,6 +473,7 @@ Módulos base del paquete:
 * `gait_analysis/train_final_model.py`
 * `gait_analysis/evaluate_final_model.py`
 * `gait_analysis/predict_walking_sequence.py`
+* `gait_analysis/run_sequence_evaluation.py`
 * `gait_analysis/write_baseline_summary.py`
 
 ### Pipeline maestro
@@ -520,6 +529,12 @@ La inferencia por ventana móvil sobre una secuencia temporal se ejecuta con:
 
 ```text
 poetry run python gait_analysis/predict_walking_sequence.py -q "47046344M-104" -f "2024-10-15 07:47:57" -u "2024-10-15 07:48:44" -o salidas_test/sequence_predictions/predictions.csv
+```
+
+La evaluación automática de los segmentos configurados en `sequence_evaluation_windows.csv` se ejecuta con:
+
+```text
+poetry run python gait_analysis/run_sequence_evaluation.py
 ```
 
 La tabla final versionada de resultados está en:
