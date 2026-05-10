@@ -364,6 +364,25 @@ Resultados principales de la evaluación por bloques del modelo final:
 * recall out-of-fold (`walking`): `0.7989`
 * matriz de confusión (`not_walking`, `walking`): `[[329, 437], [106, 421]]`
 
+La inferencia sobre una secuencia temporal se ejecuta con:
+
+```bash
+poetry run python gait_analysis/predict_walking_sequence.py \
+  -q "47046344M-104" \
+  -f "2024-10-15 07:47:57" \
+  -u "2024-10-15 07:48:44" \
+  -o salidas_test/sequence_predictions/predictions.csv
+```
+
+Este comando aplica la forma de uso final del clasificador: extrae una secuencia temporal de datos IMU, recorre la señal con la ventana móvil configurada, calcula las características espectrales y devuelve una tabla temporal con:
+
+* `time_center`
+* `prediction`
+* `prediction_label`
+* `walking_probability`
+
+Si el espectrograma ya se ha extraído previamente, se puede omitir la consulta a InfluxDB con `--spectrogram-input`.
+
 ## Documentación
 
 La documentación con Sphinx está en:
@@ -445,6 +464,7 @@ Módulos base del paquete:
 * `gait_analysis/run_ml_model_comparison_cv3.py`
 * `gait_analysis/train_final_model.py`
 * `gait_analysis/evaluate_final_model.py`
+* `gait_analysis/predict_walking_sequence.py`
 * `gait_analysis/write_baseline_summary.py`
 
 ### Pipeline maestro
@@ -494,6 +514,12 @@ La evaluación reportable del modelo final se genera con:
 
 ```text
 poetry run python gait_analysis/evaluate_final_model.py
+```
+
+La inferencia por ventana móvil sobre una secuencia temporal se ejecuta con:
+
+```text
+poetry run python gait_analysis/predict_walking_sequence.py -q "47046344M-104" -f "2024-10-15 07:47:57" -u "2024-10-15 07:48:44" -o salidas_test/sequence_predictions/predictions.csv
 ```
 
 La tabla final versionada de resultados está en:
