@@ -439,6 +439,27 @@ poetry run python -m gait_analysis.build_final_ml_sequence_summary
 
 El fichero resultante es `results/final_ml_sequence_summary.csv`. La conclusión principal es que las técnicas clásicas obtienen resultados razonables en validación estratificada aleatoria, pero su rendimiento baja al usar bloques temporales y cae de forma clara al aplicarlas sobre secuencias reales mediante ventana móvil. El ajuste de umbral y la persistencia temporal reducen falsos positivos, pero no resuelven completamente la baja precisión; esto justifica pasar a modelos secuenciales, como transformers, que puedan aprovechar mejor la dependencia temporal entre ventanas.
 
+## Dataset secuencial para transformers
+
+El primer paso para los modelos tipo transformer es transformar las ventanas tabulares independientes en secuencias temporales. El dataset secuencial se genera con:
+
+```bash
+poetry run python -m gait_analysis.build_transformer_sequence_dataset
+```
+
+La configuración inicial usa secuencias de `9` ventanas consecutivas y asigna como etiqueta la ventana central. No se cruzan pacientes ni bloques separados por huecos temporales, por lo que cada secuencia pertenece a un único bloque temporal.
+
+Artefactos generados:
+
+* `salidas_test/auto_extracts/transformer_sequence_dataset_len9.npz`
+  Tensor `X` con forma `(1205, 9, 72)` y vector `y`.
+* `salidas_test/auto_extracts/transformer_sequence_dataset_len9_metadata.csv`
+  Metadatos por secuencia: referencia, bloque temporal, instante central y etiqueta.
+* `results/transformer_sequence_dataset_summary.json`
+  Resumen versionado del dataset secuencial.
+
+El resumen actual contiene `1205` secuencias: `726` de `not_walking` y `479` de `walking`. Para entrenar transformers se debe usar la columna `group` de los metadatos como unidad de validación, evitando mezclar secuencias de un mismo bloque temporal entre entrenamiento y test.
+
 ## Documentación
 
 La documentación con Sphinx está en:
@@ -510,6 +531,7 @@ Módulos base del paquete:
 * `gait_analysis/inspect_wide_dataset.py`
 * `gait_analysis/clean_wide_dataset.py`
 * `gait_analysis/prepare_ml_dataset.py`
+* `gait_analysis/build_transformer_sequence_dataset.py`
 
 ### Utilidades de baselines
 
@@ -603,6 +625,12 @@ La tabla final consolidada de ML clásico y evaluación secuencial se genera con
 poetry run python -m gait_analysis.build_final_ml_sequence_summary
 ```
 
+El dataset secuencial para transformers se genera con:
+
+```text
+poetry run python -m gait_analysis.build_transformer_sequence_dataset
+```
+
 La tabla final versionada de resultados está en:
 
 * `results/final_baseline_results.csv`
@@ -693,6 +721,9 @@ Ficheros versionados de referencia metodológica:
 * `results/sequence_temporal_smoothing_sweep_fine.csv`
   Barrido fino de persistencia temporal alrededor de la mejor zona encontrada.
 
+* `results/transformer_sequence_dataset_summary.json`
+  Resumen del dataset secuencial inicial para modelos tipo transformer.
+
 ## Artefactos de referencia recomendados
 
 En el estado actual del proyecto, los ficheros de referencia principales son:
@@ -701,6 +732,7 @@ En el estado actual del proyecto, los ficheros de referencia principales son:
 * `experiment_configs/sequence_evaluation_windows.csv`
 * `results/final_baseline_results.csv`
 * `results/final_ml_sequence_summary.csv`
+* `results/transformer_sequence_dataset_summary.json`
 * `salidas_test/ground_truth_clean.xlsx`
 * `salidas_test/reference_coverage_summary.csv`
 * `salidas_test/window_experiment_summary.csv`
