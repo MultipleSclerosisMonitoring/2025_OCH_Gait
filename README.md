@@ -431,6 +431,14 @@ La mejor combinación del barrido actual es `threshold=0.65` y `min_run_windows=
 
 Frente al umbral `0.65` sin suavizado, la regla temporal reduce los falsos positivos de `319` a `267` sin perder más verdaderos positivos. Aun así, la precisión sigue siendo limitada, por lo que este resultado debe reportarse como una mejora parcial y no como solución definitiva.
 
+La tabla final consolidada de la parte clásica de ML y evaluación secuencial se genera con:
+
+```bash
+poetry run python -m gait_analysis.build_final_ml_sequence_summary
+```
+
+El fichero resultante es `results/final_ml_sequence_summary.csv`. La conclusión principal es que las técnicas clásicas obtienen resultados razonables en validación estratificada aleatoria, pero su rendimiento baja al usar bloques temporales y cae de forma clara al aplicarlas sobre secuencias reales mediante ventana móvil. El ajuste de umbral y la persistencia temporal reducen falsos positivos, pero no resuelven completamente la baja precisión; esto justifica pasar a modelos secuenciales, como transformers, que puedan aprovechar mejor la dependencia temporal entre ventanas.
+
 ## Documentación
 
 La documentación con Sphinx está en:
@@ -589,9 +597,16 @@ El barrido de suavizado temporal por persistencia se ejecuta con:
 poetry run python -m gait_analysis.tune_sequence_temporal_smoothing
 ```
 
+La tabla final consolidada de ML clásico y evaluación secuencial se genera con:
+
+```text
+poetry run python -m gait_analysis.build_final_ml_sequence_summary
+```
+
 La tabla final versionada de resultados está en:
 
 * `results/final_baseline_results.csv`
+* `results/final_ml_sequence_summary.csv`
 
 La comparativa versionada de modelos ML con CV=3 está en:
 
@@ -654,6 +669,9 @@ Ficheros versionados de referencia metodológica:
 * `results/final_baseline_results.csv`
   Tabla final de resultados comparando validación estratificada aleatoria y validación agrupada por bloques temporales.
 
+* `results/final_ml_sequence_summary.csv`
+  Tabla consolidada de CV=3, validación por bloques y evaluación secuencial con postprocesado.
+
 * `results/sequence_evaluation_results.csv`
   Métricas por segmento para la evaluación por ventana móvil.
 
@@ -682,6 +700,7 @@ En el estado actual del proyecto, los ficheros de referencia principales son:
 * `experiment_configs/main_dataset_windows.csv`
 * `experiment_configs/sequence_evaluation_windows.csv`
 * `results/final_baseline_results.csv`
+* `results/final_ml_sequence_summary.csv`
 * `salidas_test/ground_truth_clean.xlsx`
 * `salidas_test/reference_coverage_summary.csv`
 * `salidas_test/window_experiment_summary.csv`

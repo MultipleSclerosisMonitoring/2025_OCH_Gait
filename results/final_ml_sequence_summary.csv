@@ -1,0 +1,8 @@
+method,evaluation,accuracy,accuracy_sd,precision_walking,precision_walking_sd,recall_walking,recall_walking_sd,f1_walking,f1_walking_sd,tn,fp,fn,tp,comment
+Random Forest,Stratified CV=3,0.7394,0.0117,0.6497,0.0205,0.7856,0.0327,0.7107,0.0101,,,,,Baseline clasico con control de overfitting.
+XGBoost,Stratified CV=3,0.7618,0.0119,0.6886,0.0106,0.759,0.0481,0.7216,0.0221,,,,,Mejor F1 medio en CV=3.
+CatBoost,Stratified CV=3,0.7579,0.0149,0.6847,0.0118,0.7534,0.0597,0.7166,0.0265,,,,,Rendimiento similar a XGBoost en CV=3.
+Random Forest,Temporal block CV,0.58,,0.4907,,0.7989,,0.6079,,329.0,437.0,106.0,421.0,Validacion mas exigente; muestra caida de generalizacion por dependencia temporal entre ventanas.
+Random Forest,Sequence inference threshold=0.50,0.2341,,0.0187,,1.0,,0.0368,,180.0,628.0,0.0,12.0,Aplicacion directa por ventana movil; detecta marcha pero genera muchos falsos positivos.
+Random Forest,Sequence inference threshold=0.65,0.6061,,0.0245,,0.6667,,0.0472,,489.0,319.0,4.0,8.0,Ajuste de umbral; reduce falsos positivos con perdida parcial de recall.
+Random Forest,Sequence inference threshold=0.65 min_run=2,0.6695,,0.0291,,0.6667,,0.0557,,541.0,267.0,4.0,8.0,Mejor postprocesado temporal actual; baja falsos positivos sin perder mas verdaderos positivos.
