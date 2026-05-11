@@ -117,6 +117,33 @@ def add_sequence_row(
     )
 
 
+def add_transformer_row(rows: list[dict], path: Path) -> None:
+    """Append transformer grouped-evaluation row when available."""
+    if not path.exists():
+        return
+    data = json.loads(path.read_text())
+    metrics = data["out_of_fold_metrics"]
+    matrix = data["confusion_matrix"]["matrix"]
+    rows.append(
+        {
+            "method": "Transformer encoder",
+            "evaluation": "Temporal sequence block CV",
+            "accuracy": rounded(metrics["accuracy"]),
+            "precision_walking": rounded(metrics["precision_walking"]),
+            "recall_walking": rounded(metrics["recall_walking"]),
+            "f1_walking": rounded(metrics["f1_walking"]),
+            "tn": int(matrix[0][0]),
+            "fp": int(matrix[0][1]),
+            "fn": int(matrix[1][0]),
+            "tp": int(matrix[1][1]),
+            "comment": (
+                "Modelo secuencial inicial con contexto de 9 ventanas; mejora "
+                "frente a RF secuencial directo pero no supera al RF por bloques."
+            ),
+        }
+    )
+
+
 def build_summary() -> pd.DataFrame:
     """Build final summary dataframe from existing result artifacts."""
     rows: list[dict] = []
@@ -163,6 +190,7 @@ def build_summary() -> pd.DataFrame:
             "perder mas verdaderos positivos."
         ),
     )
+    add_transformer_row(rows, Path("results/transformer_sequence_summary.json"))
 
     return pd.DataFrame(rows).reindex(columns=OUTPUT_COLUMNS)
 

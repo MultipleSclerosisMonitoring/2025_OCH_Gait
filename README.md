@@ -460,6 +460,22 @@ Artefactos generados:
 
 El resumen actual contiene `1205` secuencias: `726` de `not_walking` y `479` de `walking`. Para entrenar transformers se debe usar la columna `group` de los metadatos como unidad de validación, evitando mezclar secuencias de un mismo bloque temporal entre entrenamiento y test.
 
+El baseline inicial con transformer se entrena con:
+
+```bash
+poetry run python -m gait_analysis.train_transformer_sequence_classifier
+```
+
+El modelo usa un `TransformerEncoder` pequeño con contexto de 9 ventanas y se evalúa con Leave-One-Group-Out sobre bloques temporales. Los resultados out-of-fold actuales son:
+
+* accuracy: `0.5378`
+* precision (`walking`): `0.4470`
+* recall (`walking`): `0.6868`
+* F1-score (`walking`): `0.5416`
+* matriz de confusión (`not_walking`, `walking`): `[[319, 407], [150, 329]]`
+
+Este primer transformer mejora claramente la aplicación secuencial directa del Random Forest, pero todavía no supera al Random Forest evaluado por bloques temporales (`F1 walking = 0.6079`). La lectura actual es que el enfoque secuencial es viable, aunque el dataset sigue siendo pequeño para entrenar modelos neuronales con buena generalización.
+
 ## Documentación
 
 La documentación con Sphinx está en:
@@ -544,6 +560,7 @@ Módulos base del paquete:
 * `gait_analysis/evaluate_final_model.py`
 * `gait_analysis/predict_walking_sequence.py`
 * `gait_analysis/run_sequence_evaluation.py`
+* `gait_analysis/train_transformer_sequence_classifier.py`
 * `gait_analysis/write_baseline_summary.py`
 
 ### Pipeline maestro
@@ -629,6 +646,12 @@ El dataset secuencial para transformers se genera con:
 
 ```text
 poetry run python -m gait_analysis.build_transformer_sequence_dataset
+```
+
+El baseline transformer se entrena y evalúa con:
+
+```text
+poetry run python -m gait_analysis.train_transformer_sequence_classifier
 ```
 
 La tabla final versionada de resultados está en:
@@ -723,6 +746,15 @@ Ficheros versionados de referencia metodológica:
 
 * `results/transformer_sequence_dataset_summary.json`
   Resumen del dataset secuencial inicial para modelos tipo transformer.
+
+* `results/transformer_sequence_summary.json`
+  Resumen de la evaluación out-of-fold del baseline transformer.
+
+* `results/transformer_sequence_cv_results.csv`
+  Métricas por fold/bloque temporal del baseline transformer.
+
+* `results/transformer_sequence_cv_predictions.csv`
+  Predicciones out-of-fold del baseline transformer.
 
 ## Artefactos de referencia recomendados
 
