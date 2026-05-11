@@ -79,6 +79,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="models/final_random_forest_model.joblib",
         help="Modelo entrenado en formato joblib",
     )
+    p.add_argument(
+        "--threshold",
+        type=float,
+        default=0.5,
+        help="Umbral de probabilidad para clasificar walking",
+    )
     return p
 
 
@@ -103,7 +109,13 @@ def label_time_center(
     return "NO_LABEL"
 
 
-def run_prediction(row: pd.Series, prediction_dir: Path, config: str, model: str) -> Path:
+def run_prediction(
+    row: pd.Series,
+    prediction_dir: Path,
+    config: str,
+    model: str,
+    threshold: float,
+) -> Path:
     """Run predict_walking_sequence.py for one configured segment."""
     block_id = make_block_id(
         str(row["Reference"]),
@@ -124,6 +136,8 @@ def run_prediction(row: pd.Series, prediction_dir: Path, config: str, model: str
         config,
         "--model",
         model,
+        "--threshold",
+        str(threshold),
         "-o",
         str(output_path),
     ]
@@ -242,6 +256,7 @@ def main() -> None:
             prediction_dir=prediction_dir,
             config=args.config,
             model=args.model,
+            threshold=args.threshold,
         )
         predictions = pd.read_csv(prediction_path)
         predictions["time_center"] = pd.to_datetime(

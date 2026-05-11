@@ -401,6 +401,19 @@ Con las ventanas válidas comprobadas en InfluxDB, la primera evaluación secuen
 
 Estos resultados confirman que el clasificador conserva sensibilidad para detectar marcha, pero produce demasiados falsos positivos sobre segmentos de no marcha cuando se aplica como ventana móvil en secuencia temporal.
 
+Para analizar este comportamiento sin volver a consultar InfluxDB, se puede recalcular la decisión final a partir de `walking_probability` probando varios umbrales:
+
+```bash
+poetry run python -m gait_analysis.tune_sequence_threshold
+```
+
+El barrido inicial muestra que el umbral `0.65` mejora el equilibrio actual frente al umbral por defecto `0.50`:
+
+* umbral `0.50`: accuracy `0.2341`, precision `0.0188`, recall `1.0000`, F1 `0.0368`, falsos positivos `628`
+* umbral `0.65`: accuracy `0.6061`, precision `0.0245`, recall `0.6667`, F1 `0.0472`, falsos positivos `319`
+
+El ajuste reduce de forma clara los falsos positivos, aunque todavía mantiene una precision baja. Por tanto, el siguiente refinamiento metodológico debe incorporar suavizado temporal o reglas de persistencia para evitar que ventanas aisladas activen una predicción de marcha.
+
 ## Documentación
 
 La documentación con Sphinx está en:
@@ -544,7 +557,13 @@ poetry run python gait_analysis/predict_walking_sequence.py -q "47046344M-104" -
 La evaluación automática de los segmentos configurados en `sequence_evaluation_windows.csv` se ejecuta con:
 
 ```text
-poetry run python -m gait_analysis.run_sequence_evaluation
+poetry run python -m gait_analysis.run_sequence_evaluation --threshold 0.65
+```
+
+El barrido de umbrales sobre predicciones ya guardadas se ejecuta con:
+
+```text
+poetry run python -m gait_analysis.tune_sequence_threshold
 ```
 
 La tabla final versionada de resultados está en:
@@ -620,6 +639,12 @@ Ficheros versionados de referencia metodológica:
 
 * `results/sequence_evaluation_predictions.csv`
   Predicciones temporales agregadas con `time_center`, etiqueta real, predicción y probabilidad de marcha.
+
+* `results/sequence_threshold_sweep.csv`
+  Barrido amplio de umbrales sobre `walking_probability`.
+
+* `results/sequence_threshold_sweep_fine.csv`
+  Barrido fino alrededor del mejor umbral encontrado.
 
 ## Artefactos de referencia recomendados
 
