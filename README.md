@@ -414,6 +414,23 @@ El barrido inicial muestra que el umbral `0.65` mejora el equilibrio actual fren
 
 El ajuste reduce de forma clara los falsos positivos, aunque todavía mantiene una precision baja. Por tanto, el siguiente refinamiento metodológico debe incorporar suavizado temporal o reglas de persistencia para evitar que ventanas aisladas activen una predicción de marcha.
 
+También se ha evaluado una regla de persistencia temporal: primero se aplica el umbral sobre `walking_probability` y después solo se aceptan como marcha los bloques con al menos `N` ventanas positivas consecutivas. El barrido se ejecuta con:
+
+```bash
+poetry run python -m gait_analysis.tune_sequence_temporal_smoothing
+```
+
+La mejor combinación del barrido actual es `threshold=0.65` y `min_run_windows=2`:
+
+* accuracy: `0.6695`
+* precision (`walking`): `0.0291`
+* recall (`walking`): `0.6667`
+* F1-score (`walking`): `0.0557`
+* falsos positivos: `267`
+* matriz de confusión (`not_walking`, `walking`): `[[541, 267], [4, 8]]`
+
+Frente al umbral `0.65` sin suavizado, la regla temporal reduce los falsos positivos de `319` a `267` sin perder más verdaderos positivos. Aun así, la precisión sigue siendo limitada, por lo que este resultado debe reportarse como una mejora parcial y no como solución definitiva.
+
 ## Documentación
 
 La documentación con Sphinx está en:
@@ -566,6 +583,12 @@ El barrido de umbrales sobre predicciones ya guardadas se ejecuta con:
 poetry run python -m gait_analysis.tune_sequence_threshold
 ```
 
+El barrido de suavizado temporal por persistencia se ejecuta con:
+
+```text
+poetry run python -m gait_analysis.tune_sequence_temporal_smoothing
+```
+
 La tabla final versionada de resultados está en:
 
 * `results/final_baseline_results.csv`
@@ -646,6 +669,12 @@ Ficheros versionados de referencia metodológica:
 * `results/sequence_threshold_sweep_fine.csv`
   Barrido fino alrededor del mejor umbral encontrado.
 
+* `results/sequence_temporal_smoothing_sweep.csv`
+  Barrido de reglas de persistencia temporal sobre las predicciones secuenciales.
+
+* `results/sequence_temporal_smoothing_sweep_fine.csv`
+  Barrido fino de persistencia temporal alrededor de la mejor zona encontrada.
+
 ## Artefactos de referencia recomendados
 
 En el estado actual del proyecto, los ficheros de referencia principales son:
@@ -677,4 +706,4 @@ Las siguientes líneas de trabajo previstas son:
 * mejorar la cobertura útil del dataset
 * validar por sujeto cuando haya más sujetos con cobertura real
 * añadir atributos agregados por ventana además de las potencias espectrales
-* estudiar modelos de clasificación más avanzados a partir de una base de datos más robusta
+* construir y comparar modelos secuenciales tipo transformer a partir de una base de datos más robusta
