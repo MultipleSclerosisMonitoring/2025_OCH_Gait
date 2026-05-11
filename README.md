@@ -386,10 +386,20 @@ Si el espectrograma ya se ha extraído previamente, se puede omitir la consulta 
 Cuando existan segmentos marcados como `use_for_sequence_eval=True` en `experiment_configs/sequence_evaluation_windows.csv`, la evaluación automática contra ground truth se ejecuta con:
 
 ```bash
-poetry run python gait_analysis/run_sequence_evaluation.py
+poetry run python -m gait_analysis.run_sequence_evaluation
 ```
 
 Este script lanza la inferencia por ventana móvil para cada segmento, cruza cada `time_center` con `ground_truth_clean.xlsx` y genera métricas por segmento y agregadas.
+
+Con las ventanas válidas comprobadas en InfluxDB, la primera evaluación secuencial genera 820 ventanas temporales evaluadas. El resultado agregado actual es:
+
+* accuracy: `0.2341`
+* precision (`walking`): `0.0188`
+* recall (`walking`): `1.0000`
+* F1-score (`walking`): `0.0368`
+* matriz de confusión (`not_walking`, `walking`): `[[180, 628], [0, 12]]`
+
+Estos resultados confirman que el clasificador conserva sensibilidad para detectar marcha, pero produce demasiados falsos positivos sobre segmentos de no marcha cuando se aplica como ventana móvil en secuencia temporal.
 
 ## Documentación
 
@@ -534,7 +544,7 @@ poetry run python gait_analysis/predict_walking_sequence.py -q "47046344M-104" -
 La evaluación automática de los segmentos configurados en `sequence_evaluation_windows.csv` se ejecuta con:
 
 ```text
-poetry run python gait_analysis/run_sequence_evaluation.py
+poetry run python -m gait_analysis.run_sequence_evaluation
 ```
 
 La tabla final versionada de resultados está en:
@@ -597,10 +607,19 @@ Ficheros versionados de referencia metodológica:
   Definición reproducible de los bloques temporales usados por el dataset principal.
 
 * `experiment_configs/sequence_evaluation_windows.csv`
-  Candidatos no vistos para evaluar la inferencia por ventana móvil sobre secuencias temporales. Incluye segmentos de pacientes ya presentes y de pacientes nuevos, pendientes de confirmar con InfluxDB cuando haya conectividad estable.
+  Candidatos no vistos para evaluar la inferencia por ventana móvil sobre secuencias temporales. Incluye segmentos validados en InfluxDB y segmentos descartados por falta de datos o cobertura incompleta de ambos pies.
 
 * `results/final_baseline_results.csv`
   Tabla final de resultados comparando validación estratificada aleatoria y validación agrupada por bloques temporales.
+
+* `results/sequence_evaluation_results.csv`
+  Métricas por segmento para la evaluación por ventana móvil.
+
+* `results/sequence_evaluation_summary.csv`
+  Métricas agregadas de la evaluación por ventana móvil.
+
+* `results/sequence_evaluation_predictions.csv`
+  Predicciones temporales agregadas con `time_center`, etiqueta real, predicción y probabilidad de marcha.
 
 ## Artefactos de referencia recomendados
 
