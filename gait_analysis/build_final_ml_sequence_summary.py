@@ -144,6 +144,35 @@ def add_transformer_row(rows: list[dict], path: Path) -> None:
     )
 
 
+def add_transformer_threshold_row(rows: list[dict], path: Path) -> None:
+    """Append the best transformer-threshold row when available."""
+    if not path.exists():
+        return
+    sweep = pd.read_csv(path)
+    best = sweep.sort_values(
+        ["f1_walking", "precision_walking", "accuracy"],
+        ascending=False,
+    ).iloc[0]
+    rows.append(
+        {
+            "method": "Transformer encoder",
+            "evaluation": f"Temporal sequence block CV threshold={best['threshold']:.2f}",
+            "accuracy": rounded(best["accuracy"]),
+            "precision_walking": rounded(best["precision_walking"]),
+            "recall_walking": rounded(best["recall_walking"]),
+            "f1_walking": rounded(best["f1_walking"]),
+            "tn": int(best["tn"]),
+            "fp": int(best["fp"]),
+            "fn": int(best["fn"]),
+            "tp": int(best["tp"]),
+            "comment": (
+                "Ajuste de umbral sobre probabilidades out-of-fold; sube recall "
+                "y F1, pero confirma mala calibracion y muchos falsos positivos."
+            ),
+        }
+    )
+
+
 def build_summary() -> pd.DataFrame:
     """Build final summary dataframe from existing result artifacts."""
     rows: list[dict] = []
@@ -191,6 +220,10 @@ def build_summary() -> pd.DataFrame:
         ),
     )
     add_transformer_row(rows, Path("results/transformer_sequence_summary.json"))
+    add_transformer_threshold_row(
+        rows,
+        Path("results/transformer_sequence_threshold_sweep_fine.csv"),
+    )
 
     return pd.DataFrame(rows).reindex(columns=OUTPUT_COLUMNS)
 

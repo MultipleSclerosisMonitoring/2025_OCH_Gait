@@ -474,7 +474,21 @@ El modelo usa un `TransformerEncoder` pequeño con contexto de 9 ventanas y se e
 * F1-score (`walking`): `0.5416`
 * matriz de confusión (`not_walking`, `walking`): `[[319, 407], [150, 329]]`
 
-Este primer transformer mejora claramente la aplicación secuencial directa del Random Forest, pero todavía no supera al Random Forest evaluado por bloques temporales (`F1 walking = 0.6079`). La lectura actual es que el enfoque secuencial es viable, aunque el dataset sigue siendo pequeño para entrenar modelos neuronales con buena generalización.
+También se ha probado un barrido de umbrales sobre las probabilidades out-of-fold del transformer:
+
+```bash
+poetry run python -m gait_analysis.tune_transformer_sequence_threshold
+```
+
+El mejor F1 aparece con umbral `0.01`:
+
+* accuracy: `0.5071`
+* precision (`walking`): `0.4347`
+* recall (`walking`): `0.7996`
+* F1-score (`walking`): `0.5632`
+* matriz de confusión (`not_walking`, `walking`): `[[228, 498], [96, 383]]`
+
+Este primer transformer mejora claramente la aplicación secuencial directa del Random Forest, pero todavía no supera al Random Forest evaluado por bloques temporales (`F1 walking = 0.6079`). El barrido de umbral mejora el recall y el F1, aunque confirma que las probabilidades están mal calibradas y todavía hay muchos falsos positivos. La lectura actual es que el enfoque secuencial es viable, pero el dataset sigue siendo pequeño para entrenar modelos neuronales con buena generalización.
 
 ## Documentación
 
@@ -561,6 +575,7 @@ Módulos base del paquete:
 * `gait_analysis/predict_walking_sequence.py`
 * `gait_analysis/run_sequence_evaluation.py`
 * `gait_analysis/train_transformer_sequence_classifier.py`
+* `gait_analysis/tune_transformer_sequence_threshold.py`
 * `gait_analysis/write_baseline_summary.py`
 
 ### Pipeline maestro
@@ -652,6 +667,12 @@ El baseline transformer se entrena y evalúa con:
 
 ```text
 poetry run python -m gait_analysis.train_transformer_sequence_classifier
+```
+
+El barrido de umbrales del transformer se ejecuta con:
+
+```text
+poetry run python -m gait_analysis.tune_transformer_sequence_threshold
 ```
 
 La tabla final versionada de resultados está en:
@@ -755,6 +776,12 @@ Ficheros versionados de referencia metodológica:
 
 * `results/transformer_sequence_cv_predictions.csv`
   Predicciones out-of-fold del baseline transformer.
+
+* `results/transformer_sequence_threshold_sweep.csv`
+  Barrido amplio de umbrales sobre las probabilidades out-of-fold del transformer.
+
+* `results/transformer_sequence_threshold_sweep_fine.csv`
+  Barrido fino de umbrales del transformer en la zona de mejor F1.
 
 ## Artefactos de referencia recomendados
 
