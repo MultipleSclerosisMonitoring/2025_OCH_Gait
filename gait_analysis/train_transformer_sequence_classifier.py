@@ -39,6 +39,9 @@ class TrainConfig:
     dropout: float
     patience: int
     seed: int
+    class_weight_mode: str
+    pooling: str
+    validation_mode: str
 
 
 class SequenceTransformerClassifier(nn.Module):
@@ -53,8 +56,10 @@ class SequenceTransformerClassifier(nn.Module):
         num_layers: int,
         dim_feedforward: int,
         dropout: float,
+        pooling: str,
     ) -> None:
         super().__init__()
+        self.pooling = pooling
         self.input_projection = nn.Linear(input_dim, d_model)
         self.positional_embedding = nn.Parameter(
             torch.zeros(1, sequence_length, d_model)
@@ -80,8 +85,11 @@ class SequenceTransformerClassifier(nn.Module):
         """Return logits for a batch of sequences."""
         hidden = self.input_projection(x) + self.positional_embedding
         encoded = self.encoder(hidden)
-        center = encoded[:, encoded.shape[1] // 2, :]
-        return self.classifier(center)
+        if self.pooling == "mean":
+            pooled = encoded.mean(dim=1)
+        else:
+            pooled = encoded[:, encoded.shape[1] // 2, :]
+        return self.classifier(pooled)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -120,6 +128,24 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dropout", type=float, default=0.15)
     p.add_argument("--patience", type=int, default=12)
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument(
+        "--class-weight-mode",
+        choices=["balanced", "none"],
+        default="balanced",
+        help="Uso de pesos de clase en CrossEntropyLoss",
+    )
+    p.add_argument(
+        "--pooling",
+        choices=["center", "mean"],
+        default="center",
+        help="Representacion de secuencia usada por el clasificador",
+    )
+    p.add_argument(
+        "--validation-mode",
+        choices=["none", "group"],
+        default="none",
+        help="Criterio de early stopping: perdida de train o grupo interno de validacion",
+    )
     return p
 
 
@@ -168,6 +194,23 @@ def make_loader(
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
 
 
+def choose_validation_group(
+    train_idx: np.ndarray,
+    groups: pd.Series,
+    fold: int,
+) -> tuple[np.ndarray, np.ndarray, str]:
+    """Split training indexes into fit/validation by one temporal group."""
+    train_groups = pd.Series(groups.iloc[train_idx].to_numpy())
+    unique_groups = sorted(train_groups.unique().tolist())
+    if len(unique_groups) < 2:
+        return train_idx, np.asarray([], dtype=int), ""
+    validation_group = unique_groups[(fold - 1) % len(unique_groups)]
+    is_validation = groups.iloc[train_idx].eq(validation_group).to_numpy()
+    fit_idx = train_idx[~is_validation]
+    validation_idx = train_idx[is_validation]
+    return fit_idx, validation_idx, str(validation_group)
+
+
 def class_weights(y_train: np.ndarray) -> torch.Tensor:
     """Return inverse-frequency class weights."""
     counts = np.bincount(y_train, minlength=2).astype(np.float32)
@@ -180,6 +223,8 @@ def train_one_fold(
     X_train: np.ndarray,
     y_train: np.ndarray,
     config: TrainConfig,
+    X_val: np.ndarray | None = None,
+    y_val: np.ndarray | None = None,
 ) -> tuple[SequenceTransformerClassifier, float, int]:
     """Train one fold and return model, best loss and epochs used."""
     model = SequenceTransformerClassifier(
@@ -190,14 +235,21 @@ def train_one_fold(
         num_layers=config.num_layers,
         dim_feedforward=config.dim_feedforward,
         dropout=config.dropout,
+        pooling=config.pooling,
     )
-    criterion = nn.CrossEntropyLoss(weight=class_weights(y_train))
+    weight = class_weights(y_train) if config.class_weight_mode == "balanced" else None
+    criterion = nn.CrossEntropyLoss(weight=weight)
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=config.learning_rate,
         weight_decay=1e-3,
     )
     loader = make_loader(X_train, y_train, config.batch_size, shuffle=True)
+    val_loader = (
+        make_loader(X_val, y_val, config.batch_size, shuffle=False)
+        if X_val is not None and y_val is not None and len(y_val) > 0
+        else None
+    )
 
     best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
     best_loss = float("inf")
@@ -216,7 +268,16 @@ def train_one_fold(
             optimizer.step()
             losses.append(float(loss.detach().cpu()))
 
-        epoch_loss = float(np.mean(losses))
+        train_loss = float(np.mean(losses))
+        if val_loader is not None:
+            model.eval()
+            val_losses = []
+            with torch.no_grad():
+                for xb, yb in val_loader:
+                    val_losses.append(float(criterion(model(xb), yb).detach().cpu()))
+            epoch_loss = float(np.mean(val_losses))
+        else:
+            epoch_loss = train_loss
         epochs_used = epoch
         if epoch_loss < best_loss - 1e-4:
             best_loss = epoch_loss
@@ -270,6 +331,9 @@ def main() -> None:
         dropout=args.dropout,
         patience=args.patience,
         seed=args.seed,
+        class_weight_mode=args.class_weight_mode,
+        pooling=args.pooling,
+        validation_mode=args.validation_mode,
     )
     set_seed(config.seed)
 
@@ -280,9 +344,30 @@ def main() -> None:
     prediction_frames = []
 
     for fold, (train_idx, test_idx) in enumerate(logo.split(X, y, groups), start=1):
-        X_train, X_test = normalize_train_test(X[train_idx], X[test_idx])
-        y_train, y_test = y[train_idx], y[test_idx]
-        model, train_loss, epochs_used = train_one_fold(X_train, y_train, config)
+        fit_idx = train_idx
+        val_idx = np.asarray([], dtype=int)
+        validation_group = ""
+        if config.validation_mode == "group":
+            fit_idx, val_idx, validation_group = choose_validation_group(
+                train_idx,
+                groups=groups,
+                fold=fold,
+            )
+
+        X_train, X_test = normalize_train_test(X[fit_idx], X[test_idx])
+        y_train, y_test = y[fit_idx], y[test_idx]
+        X_val = y_val = None
+        if len(val_idx) > 0:
+            _, X_val = normalize_train_test(X[fit_idx], X[val_idx])
+            y_val = y[val_idx]
+
+        model, train_loss, epochs_used = train_one_fold(
+            X_train,
+            y_train,
+            config,
+            X_val=X_val,
+            y_val=y_val,
+        )
         y_pred, walking_probability = predict(model, X_test, config.batch_size)
         tn, fp, fn, tp = confusion_matrix(y_test, y_pred, labels=[0, 1]).ravel()
         group_name = str(groups.iloc[test_idx].iloc[0])
@@ -296,6 +381,9 @@ def main() -> None:
                 "test_walking": int((y_test == 1).sum()),
                 "train_loss": train_loss,
                 "epochs_used": epochs_used,
+                "validation_group": validation_group,
+                "train_rows": int(len(fit_idx)),
+                "validation_rows": int(len(val_idx)),
                 **score_predictions(y_test, y_pred),
                 "tn": int(tn),
                 "fp": int(fp),

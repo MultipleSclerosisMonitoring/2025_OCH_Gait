@@ -117,7 +117,12 @@ def add_sequence_row(
     )
 
 
-def add_transformer_row(rows: list[dict], path: Path) -> None:
+def add_transformer_row(
+    rows: list[dict],
+    path: Path,
+    method: str,
+    comment: str,
+) -> None:
     """Append transformer grouped-evaluation row when available."""
     if not path.exists():
         return
@@ -126,7 +131,7 @@ def add_transformer_row(rows: list[dict], path: Path) -> None:
     matrix = data["confusion_matrix"]["matrix"]
     rows.append(
         {
-            "method": "Transformer encoder",
+            "method": method,
             "evaluation": "Temporal sequence block CV",
             "accuracy": rounded(metrics["accuracy"]),
             "precision_walking": rounded(metrics["precision_walking"]),
@@ -136,10 +141,7 @@ def add_transformer_row(rows: list[dict], path: Path) -> None:
             "fp": int(matrix[0][1]),
             "fn": int(matrix[1][0]),
             "tp": int(matrix[1][1]),
-            "comment": (
-                "Modelo secuencial inicial con contexto de 9 ventanas; mejora "
-                "frente a RF secuencial directo pero no supera al RF por bloques."
-            ),
+            "comment": comment,
         }
     )
 
@@ -219,10 +221,27 @@ def build_summary() -> pd.DataFrame:
             "perder mas verdaderos positivos."
         ),
     )
-    add_transformer_row(rows, Path("results/transformer_sequence_summary.json"))
+    add_transformer_row(
+        rows,
+        Path("results/transformer_sequence_summary.json"),
+        method="Transformer encoder",
+        comment=(
+            "Modelo secuencial inicial con contexto de 9 ventanas; mejora "
+            "frente a RF secuencial directo pero no supera al RF por bloques."
+        ),
+    )
     add_transformer_threshold_row(
         rows,
         Path("results/transformer_sequence_threshold_sweep_fine.csv"),
+    )
+    add_transformer_row(
+        rows,
+        Path("results/transformer_sequence_summary_group_val.json"),
+        method="Transformer encoder group-val",
+        comment=(
+            "Transformer con early stopping por grupo interno; reduce "
+            "sobreajuste y es la mejor variante secuencial actual."
+        ),
     )
 
     return pd.DataFrame(rows).reindex(columns=OUTPUT_COLUMNS)

@@ -490,6 +490,22 @@ El mejor F1 aparece con umbral `0.01`:
 
 Este primer transformer mejora claramente la aplicación secuencial directa del Random Forest, pero todavía no supera al Random Forest evaluado por bloques temporales (`F1 walking = 0.6079`). El barrido de umbral mejora el recall y el F1, aunque confirma que las probabilidades están mal calibradas y todavía hay muchos falsos positivos. La lectura actual es que el enfoque secuencial es viable, pero el dataset sigue siendo pequeño para entrenar modelos neuronales con buena generalización.
 
+Para reducir sobreajuste, se ha añadido una variante con early stopping usando un grupo temporal interno de validación dentro de cada fold:
+
+```bash
+poetry run python -m gait_analysis.train_transformer_sequence_classifier --validation-mode group
+```
+
+Esta variante mejora el resultado del transformer:
+
+* accuracy: `0.5983`
+* precision (`walking`): `0.4964`
+* recall (`walking`): `0.7161`
+* F1-score (`walking`): `0.5863`
+* matriz de confusión (`not_walking`, `walking`): `[[378, 348], [136, 343]]`
+
+Sigue ligeramente por debajo del Random Forest por bloques, pero reduce la distancia (`0.5863` frente a `0.6079`) y confirma que una validación interna más estricta mejora la generalización del modelo secuencial.
+
 ## Documentación
 
 La documentación con Sphinx está en:
@@ -669,6 +685,12 @@ El baseline transformer se entrena y evalúa con:
 poetry run python -m gait_analysis.train_transformer_sequence_classifier
 ```
 
+La variante transformer con validación interna por grupo se ejecuta con:
+
+```text
+poetry run python -m gait_analysis.train_transformer_sequence_classifier --validation-mode group
+```
+
 El barrido de umbrales del transformer se ejecuta con:
 
 ```text
@@ -782,6 +804,18 @@ Ficheros versionados de referencia metodológica:
 
 * `results/transformer_sequence_threshold_sweep_fine.csv`
   Barrido fino de umbrales del transformer en la zona de mejor F1.
+
+* `results/transformer_sequence_summary_group_val.json`
+  Resumen de la variante transformer con early stopping por grupo interno.
+
+* `results/transformer_sequence_cv_results_group_val.csv`
+  Métricas por fold de la variante transformer con validación interna.
+
+* `results/transformer_sequence_cv_predictions_group_val.csv`
+  Predicciones out-of-fold de la variante transformer con validación interna.
+
+* `results/transformer_sequence_threshold_sweep_group_val.csv`
+  Barrido de umbrales de la variante transformer con validación interna.
 
 ## Artefactos de referencia recomendados
 
