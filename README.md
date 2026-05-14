@@ -449,6 +449,26 @@ El script toma los segmentos válidos de `sequence_evaluation_windows.csv`, conc
 
 Este experimento ya produce la salida temporal solicitada (`t`, etiqueta real, predicción y probabilidad), guardada en `results/stitched_sequence_predictions.csv`. Debe interpretarse con cautela porque el conjunto disponible tiene muchos más puntos de no marcha que de marcha y solo un tramo corto de marcha válido para esta prueba.
 
+La evaluación separada en pacientes totalmente nuevos se ejecuta con:
+
+```bash
+poetry run python -m gait_analysis.build_stitched_sequence_evaluation \
+  --scope new_patient \
+  --predictions-output results/stitched_sequence_predictions_new_patient.csv \
+  --summary-output results/stitched_sequence_summary_new_patient.csv
+```
+
+Con los datos disponibles actualmente solo hay un segmento válido de paciente nuevo, y corresponde a `not_walking`; los candidatos de marcha de pacientes nuevos no tienen datos válidos de ambos pies en InfluxDB. Por tanto, esta evaluación mide de momento la tasa de falsos positivos en paciente nuevo, no la capacidad de detectar marcha en paciente nuevo:
+
+* segmentos concatenados: `1`
+* ventanas evaluadas: `432`
+* accuracy: `0.6991`
+* verdaderos negativos: `302`
+* falsos positivos: `130`
+* matriz de confusión (`not_walking`, `walking`): `[[302, 130], [0, 0]]`
+
+Para cerrar completamente este punto faltan segmentos válidos de `walking` en pacientes nuevos.
+
 La tabla final consolidada de la parte clásica de ML y evaluación secuencial se genera con:
 
 ```bash
@@ -760,6 +780,12 @@ La evaluación con segmentos no vistos concatenados se ejecuta con:
 poetry run python -m gait_analysis.build_stitched_sequence_evaluation
 ```
 
+La evaluación separada sobre pacientes nuevos se ejecuta con:
+
+```text
+poetry run python -m gait_analysis.build_stitched_sequence_evaluation --scope new_patient
+```
+
 La tabla final consolidada de ML clásico y evaluación secuencial se genera con:
 
 ```text
@@ -897,6 +923,12 @@ Ficheros versionados de referencia metodológica:
 
 * `results/stitched_sequence_summary_all_valid.csv`
   Métricas agregadas de la secuencia concatenada exploratoria con todos los segmentos válidos disponibles.
+
+* `results/stitched_sequence_predictions_new_patient.csv`
+  Secuencia concatenada con los segmentos válidos disponibles de pacientes nuevos.
+
+* `results/stitched_sequence_summary_new_patient.csv`
+  Métricas agregadas de la evaluación separada en pacientes nuevos.
 
 * `results/transformer_sequence_dataset_summary.json`
   Resumen del dataset secuencial inicial para modelos tipo transformer.

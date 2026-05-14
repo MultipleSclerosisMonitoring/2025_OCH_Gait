@@ -39,7 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--scope",
-        choices=["same_patient", "all_valid"],
+        choices=["same_patient", "new_patient", "all_valid"],
         default="same_patient",
         help="Segmentos a concatenar",
     )
@@ -74,6 +74,8 @@ def load_selected_segments(windows_path: Path, scope: str) -> pd.DataFrame:
     selected = windows[windows["use_for_sequence_eval"] == True].copy()
     if scope == "same_patient":
         selected = selected[selected["seen_patient"] == True].copy()
+    elif scope == "new_patient":
+        selected = selected[selected["seen_patient"] == False].copy()
     selected = selected[selected["coverage_status"] == "valid_both_feet"].copy()
     if selected.empty:
         raise ValueError(f"No hay segmentos validos para scope={scope}.")
