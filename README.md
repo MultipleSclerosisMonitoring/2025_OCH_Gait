@@ -506,6 +506,27 @@ Esta variante mejora el resultado del transformer:
 
 Sigue ligeramente por debajo del Random Forest por bloques, pero reduce la distancia (`0.5863` frente a `0.6079`) y confirma que una validación interna más estricta mejora la generalización del modelo secuencial.
 
+La mejor variante actual reduce además la capacidad del modelo (`d_model=16`, `dim_feedforward=32`) y aumenta la regularización (`dropout=0.3`):
+
+```bash
+poetry run python -m gait_analysis.train_transformer_sequence_classifier \
+  --validation-mode group \
+  --d-model 16 \
+  --nhead 4 \
+  --dim-feedforward 32 \
+  --dropout 0.3
+```
+
+Resultados:
+
+* accuracy: `0.6091`
+* precision (`walking`): `0.5057`
+* recall (`walking`): `0.7349`
+* F1-score (`walking`): `0.5991`
+* matriz de confusión (`not_walking`, `walking`): `[[382, 344], [127, 352]]`
+
+Esta configuración queda muy cerca del Random Forest por bloques (`0.5991` frente a `0.6079`) y mejora al transformer anterior tanto en F1 como en precision, recall y accuracy.
+
 ## Documentación
 
 La documentación con Sphinx está en:
@@ -816,6 +837,18 @@ Ficheros versionados de referencia metodológica:
 
 * `results/transformer_sequence_threshold_sweep_group_val.csv`
   Barrido de umbrales de la variante transformer con validación interna.
+
+* `results/transformer_sequence_summary_group_val_small.json`
+  Resumen de la mejor variante transformer actual, más pequeña y regularizada.
+
+* `results/transformer_sequence_cv_results_group_val_small.csv`
+  Métricas por fold de la mejor variante transformer actual.
+
+* `results/transformer_sequence_cv_predictions_group_val_small.csv`
+  Predicciones out-of-fold de la mejor variante transformer actual.
+
+* `results/transformer_sequence_threshold_sweep_group_val_small.csv`
+  Barrido de umbrales de la mejor variante transformer actual.
 
 ## Artefactos de referencia recomendados
 

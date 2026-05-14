@@ -243,6 +243,15 @@ def build_summary() -> pd.DataFrame:
             "sobreajuste y es la mejor variante secuencial actual."
         ),
     )
+    add_transformer_row(
+        rows,
+        Path("results/transformer_sequence_summary_group_val_small.json"),
+        method="Transformer encoder small group-val",
+        comment=(
+            "Transformer mas pequeno y regularizado; es la mejor variante "
+            "secuencial actual y queda muy cerca del RF por bloques."
+        ),
+    )
 
     return pd.DataFrame(rows).reindex(columns=OUTPUT_COLUMNS)
 

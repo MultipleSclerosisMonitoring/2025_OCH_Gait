@@ -1,0 +1,79 @@
+{
+  "input": "salidas_test/auto_extracts/transformer_sequence_dataset_len9.npz",
+  "evaluation": "leave_one_temporal_group_out",
+  "rows": 1205,
+  "sequence_shape": [
+    1205,
+    9,
+    72
+  ],
+  "groups": 11,
+  "class_counts": {
+    "not_walking": 726,
+    "walking": 479
+  },
+  "config": {
+    "epochs": 80,
+    "batch_size": 64,
+    "learning_rate": 0.001,
+    "d_model": 16,
+    "nhead": 4,
+    "num_layers": 1,
+    "dim_feedforward": 32,
+    "dropout": 0.3,
+    "patience": 12,
+    "seed": 42,
+    "class_weight_mode": "balanced",
+    "pooling": "center",
+    "validation_mode": "group"
+  },
+  "out_of_fold_metrics": {
+    "accuracy": 0.6091286307053941,
+    "precision_walking": 0.5057471264367817,
+    "recall_walking": 0.7348643006263048,
+    "f1_walking": 0.5991489361702128
+  },
+  "confusion_matrix": {
+    "labels": [
+      "not_walking",
+      "walking"
+    ],
+    "matrix": [
+      [
+        382,
+        344
+      ],
+      [
+        127,
+        352
+      ]
+    ]
+  },
+  "classification_report": {
+    "not_walking": {
+      "precision": 0.75049115913556,
+      "recall": 0.5261707988980716,
+      "f1-score": 0.6186234817813765,
+      "support": 726.0
+    },
+    "walking": {
+      "precision": 0.5057471264367817,
+      "recall": 0.7348643006263048,
+      "f1-score": 0.5991489361702128,
+      "support": 479.0
+    },
+    "accuracy": 0.6091286307053941,
+    "macro avg": {
+      "precision": 0.6281191427861708,
+      "recall": 0.6305175497621882,
+      "f1-score": 0.6088862089757947,
+      "support": 1205.0
+    },
+    "weighted avg": {
+      "precision": 0.653202867299282,
+      "recall": 0.6091286307053941,
+      "f1-score": 0.6108821478828309,
+      "support": 1205.0
+    }
+  }
+}
