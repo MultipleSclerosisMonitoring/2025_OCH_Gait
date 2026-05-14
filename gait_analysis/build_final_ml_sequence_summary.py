@@ -206,6 +206,39 @@ def add_named_transformer_threshold_row(
     )
 
 
+def add_transformer_temporal_smoothing_row(rows: list[dict], path: Path) -> None:
+    """Append the best transformer temporal-smoothing row when available."""
+    if not path.exists():
+        return
+    sweep = pd.read_csv(path)
+    best = sweep.sort_values(
+        ["f1_walking", "precision_walking", "accuracy"],
+        ascending=False,
+    ).iloc[0]
+    rows.append(
+        {
+            "method": "Transformer small group-val label-smoothing",
+            "evaluation": (
+                "Temporal sequence block CV "
+                f"threshold={best['threshold']:.2f} "
+                f"min_run={int(best['min_run_windows'])}"
+            ),
+            "accuracy": rounded(best["accuracy"]),
+            "precision_walking": rounded(best["precision_walking"]),
+            "recall_walking": rounded(best["recall_walking"]),
+            "f1_walking": rounded(best["f1_walking"]),
+            "tn": int(best["tn"]),
+            "fp": int(best["fp"]),
+            "fn": int(best["fn"]),
+            "tp": int(best["tp"]),
+            "comment": (
+                "Postprocesado temporal sobre probabilidades out-of-fold; "
+                "reduce falsos positivos y mantiene el mejor F1 secuencial."
+            ),
+        }
+    )
+
+
 def build_summary() -> pd.DataFrame:
     """Build final summary dataframe from existing result artifacts."""
     rows: list[dict] = []
@@ -300,6 +333,10 @@ def build_summary() -> pd.DataFrame:
             "Mejor variante transformer actual tras ajustar umbral; supera "
             "al RF por bloques en F1 walking, aunque mantiene falsos positivos."
         ),
+    )
+    add_transformer_temporal_smoothing_row(
+        rows,
+        Path("results/transformer_temporal_smoothing_sweep_fine.csv"),
     )
 
     return pd.DataFrame(rows).reindex(columns=OUTPUT_COLUMNS)

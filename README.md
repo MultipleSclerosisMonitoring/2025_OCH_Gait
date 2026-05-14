@@ -557,6 +557,22 @@ Después, al ajustar el umbral de decisión sobre las probabilidades out-of-fold
 
 Esta es la mejor configuración secuencial actual. Supera al Random Forest por bloques en F1 de la clase `walking`, aunque a costa de mantener un número considerable de falsos positivos.
 
+Para reducir esos falsos positivos se ha añadido un postprocesado temporal sobre las probabilidades out-of-fold del transformer:
+
+```bash
+poetry run python -m gait_analysis.tune_transformer_temporal_smoothing
+```
+
+El mejor compromiso actual aparece con `threshold=0.43` y `min_run_windows=8`:
+
+* accuracy: `0.6456`
+* precision (`walking`): `0.5385`
+* recall (`walking`): `0.7599`
+* F1-score (`walking`): `0.6303`
+* matriz de confusión (`not_walking`, `walking`): `[[414, 312], [115, 364]]`
+
+Frente al ajuste de umbral sin suavizado, los falsos positivos bajan de `382` a `312` y el F1 sube ligeramente de `0.6290` a `0.6303`. Si se prioriza todavía más reducir falsos positivos, la combinación `threshold=0.49` y `min_run_windows=10` baja los falsos positivos a `280`, con F1 `0.6162`.
+
 ## Documentación
 
 La documentación con Sphinx está en:
@@ -643,6 +659,7 @@ Módulos base del paquete:
 * `gait_analysis/run_sequence_evaluation.py`
 * `gait_analysis/train_transformer_sequence_classifier.py`
 * `gait_analysis/tune_transformer_sequence_threshold.py`
+* `gait_analysis/tune_transformer_temporal_smoothing.py`
 * `gait_analysis/write_baseline_summary.py`
 
 ### Pipeline maestro
@@ -746,6 +763,12 @@ El barrido de umbrales del transformer se ejecuta con:
 
 ```text
 poetry run python -m gait_analysis.tune_transformer_sequence_threshold
+```
+
+El suavizado temporal del transformer para reducir falsos positivos se ejecuta con:
+
+```text
+poetry run python -m gait_analysis.tune_transformer_temporal_smoothing
 ```
 
 La tabla final versionada de resultados está en:
@@ -894,6 +917,12 @@ Ficheros versionados de referencia metodológica:
 
 * `results/transformer_sequence_threshold_sweep_group_val_small_ls005_fine.csv`
   Barrido fino de umbrales de la mejor variante transformer actual.
+
+* `results/transformer_temporal_smoothing_sweep.csv`
+  Barrido amplio de suavizado temporal aplicado al mejor transformer actual.
+
+* `results/transformer_temporal_smoothing_sweep_fine.csv`
+  Barrido fino de suavizado temporal aplicado al mejor transformer actual.
 
 ## Artefactos de referencia recomendados
 
