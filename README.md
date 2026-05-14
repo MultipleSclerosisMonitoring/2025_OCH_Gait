@@ -465,6 +465,22 @@ En los segmentos concatenados de mismos pacientes, el mejor F1 sigue apareciendo
 
 Por tanto, aumentar la persistencia temporal reduce falsos positivos, pero empieza a eliminar marcha real. Las configuraciones que dejan los falsos positivos en `0` también dejan los verdaderos positivos en `0`, por lo que no son útiles como detector de marcha.
 
+También se ha probado una regla de histéresis, con umbral alto para activar la marcha y umbral bajo para apagarla:
+
+```bash
+poetry run python -m gait_analysis.tune_stitched_sequence_hysteresis
+```
+
+El barrido muestra que, con los datos actuales, la histéresis no reduce falsos positivos mejor que la persistencia simple. El mejor F1 aparece con `enter_threshold=0.65`, `exit_threshold=0.65`, `enter_run_windows=3`, `exit_run_windows=2`:
+
+* falsos positivos: `142`
+* verdaderos positivos: `10`
+* recall (`walking`): `0.8333`
+* F1-score (`walking`): `0.1220`
+* matriz de confusión (`not_walking`, `walking`): `[[234, 142], [2, 10]]`
+
+Esta variante detecta más marcha real, pero sube los falsos positivos respecto a la configuración base (`142` frente a `137`). La opción de histéresis con menos falsos positivos y `recall >= 0.50` coincide en la práctica con la regla conservadora anterior: `121` falsos positivos y `6` verdaderos positivos.
+
 La evaluación separada en pacientes totalmente nuevos se ejecuta con:
 
 ```bash
@@ -713,6 +729,7 @@ Módulos base del paquete:
 * `gait_analysis/run_sequence_evaluation.py`
 * `gait_analysis/build_stitched_sequence_evaluation.py`
 * `gait_analysis/train_transformer_sequence_classifier.py`
+* `gait_analysis/tune_stitched_sequence_hysteresis.py`
 * `gait_analysis/tune_stitched_sequence_smoothing.py`
 * `gait_analysis/tune_transformer_sequence_threshold.py`
 * `gait_analysis/tune_transformer_temporal_smoothing.py`
@@ -807,6 +824,12 @@ El barrido conservador sobre la secuencia concatenada se ejecuta con:
 
 ```text
 poetry run python -m gait_analysis.tune_stitched_sequence_smoothing
+```
+
+El barrido con histéresis sobre la secuencia concatenada se ejecuta con:
+
+```text
+poetry run python -m gait_analysis.tune_stitched_sequence_hysteresis
 ```
 
 La tabla final consolidada de ML clásico y evaluación secuencial se genera con:
@@ -970,6 +993,12 @@ Ficheros versionados de referencia metodológica:
 
 * `results/stitched_sequence_smoothing_sweep_new_patient.csv`
   Barrido conservador de umbral y persistencia temporal sobre pacientes nuevos.
+
+* `results/stitched_sequence_hysteresis_sweep.csv`
+  Barrido de reglas de histéresis sobre la secuencia concatenada de mismos pacientes.
+
+* `results/stitched_sequence_hysteresis_sweep_new_patient.csv`
+  Barrido de reglas de histéresis sobre los segmentos disponibles de pacientes nuevos.
 
 * `results/transformer_sequence_dataset_summary.json`
   Resumen del dataset secuencial inicial para modelos tipo transformer.
