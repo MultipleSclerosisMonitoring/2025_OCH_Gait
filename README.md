@@ -431,6 +431,24 @@ La mejor combinación del barrido actual es `threshold=0.65` y `min_run_windows=
 
 Frente al umbral `0.65` sin suavizado, la regla temporal reduce los falsos positivos de `319` a `267` sin perder más verdaderos positivos. Aun así, la precisión sigue siendo limitada, por lo que este resultado debe reportarse como una mejora parcial y no como solución definitiva.
 
+Para aproximar la evaluación pedida por el tutor, también se ha construido una secuencia concatenada con segmentos de marcha y no marcha no usados de pacientes ya vistos:
+
+```bash
+poetry run python -m gait_analysis.build_stitched_sequence_evaluation
+```
+
+El script toma los segmentos válidos de `sequence_evaluation_windows.csv`, concatena sus predicciones por ventana en una línea temporal sintética y aplica la regla final `threshold=0.65`, `min_run_windows=2`. Para los segmentos de mismos pacientes disponibles actualmente:
+
+* segmentos concatenados: `4`
+* ventanas evaluadas: `388`
+* accuracy: `0.6366`
+* precision (`walking`): `0.0552`
+* recall (`walking`): `0.6667`
+* F1-score (`walking`): `0.1019`
+* matriz de confusión (`not_walking`, `walking`): `[[239, 137], [4, 8]]`
+
+Este experimento ya produce la salida temporal solicitada (`t`, etiqueta real, predicción y probabilidad), guardada en `results/stitched_sequence_predictions.csv`. Debe interpretarse con cautela porque el conjunto disponible tiene muchos más puntos de no marcha que de marcha y solo un tramo corto de marcha válido para esta prueba.
+
 La tabla final consolidada de la parte clásica de ML y evaluación secuencial se genera con:
 
 ```bash
@@ -657,6 +675,7 @@ Módulos base del paquete:
 * `gait_analysis/evaluate_final_model.py`
 * `gait_analysis/predict_walking_sequence.py`
 * `gait_analysis/run_sequence_evaluation.py`
+* `gait_analysis/build_stitched_sequence_evaluation.py`
 * `gait_analysis/train_transformer_sequence_classifier.py`
 * `gait_analysis/tune_transformer_sequence_threshold.py`
 * `gait_analysis/tune_transformer_temporal_smoothing.py`
@@ -733,6 +752,12 @@ El barrido de suavizado temporal por persistencia se ejecuta con:
 
 ```text
 poetry run python -m gait_analysis.tune_sequence_temporal_smoothing
+```
+
+La evaluación con segmentos no vistos concatenados se ejecuta con:
+
+```text
+poetry run python -m gait_analysis.build_stitched_sequence_evaluation
 ```
 
 La tabla final consolidada de ML clásico y evaluación secuencial se genera con:
@@ -860,6 +885,18 @@ Ficheros versionados de referencia metodológica:
 
 * `results/sequence_temporal_smoothing_sweep_fine.csv`
   Barrido fino de persistencia temporal alrededor de la mejor zona encontrada.
+
+* `results/stitched_sequence_predictions.csv`
+  Secuencia concatenada de segmentos no vistos de pacientes ya conocidos, con etiqueta real, predicción final y probabilidad.
+
+* `results/stitched_sequence_summary.csv`
+  Métricas agregadas de la secuencia concatenada de pacientes ya conocidos.
+
+* `results/stitched_sequence_predictions_all_valid.csv`
+  Secuencia concatenada exploratoria con todos los segmentos válidos disponibles.
+
+* `results/stitched_sequence_summary_all_valid.csv`
+  Métricas agregadas de la secuencia concatenada exploratoria con todos los segmentos válidos disponibles.
 
 * `results/transformer_sequence_dataset_summary.json`
   Resumen del dataset secuencial inicial para modelos tipo transformer.
