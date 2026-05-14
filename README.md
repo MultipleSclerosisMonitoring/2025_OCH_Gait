@@ -527,6 +527,36 @@ Resultados:
 
 Esta configuración queda muy cerca del Random Forest por bloques (`0.5991` frente a `0.6079`) y mejora al transformer anterior tanto en F1 como en precision, recall y accuracy.
 
+Se ha añadido una regularización adicional con `label_smoothing=0.05`:
+
+```bash
+poetry run python -m gait_analysis.train_transformer_sequence_classifier \
+  --validation-mode group \
+  --d-model 16 \
+  --nhead 4 \
+  --dim-feedforward 32 \
+  --dropout 0.3 \
+  --label-smoothing 0.05
+```
+
+Sin ajustar el umbral, esta variante ya supera ligeramente al Random Forest por bloques:
+
+* accuracy: `0.6133`
+* precision (`walking`): `0.5091`
+* recall (`walking`): `0.7578`
+* F1-score (`walking`): `0.6091`
+* matriz de confusión (`not_walking`, `walking`): `[[376, 350], [116, 363]]`
+
+Después, al ajustar el umbral de decisión sobre las probabilidades out-of-fold, el mejor valor aparece con `threshold=0.43`:
+
+* accuracy: `0.6133`
+* precision (`walking`): `0.5084`
+* recall (`walking`): `0.8246`
+* F1-score (`walking`): `0.6290`
+* matriz de confusión (`not_walking`, `walking`): `[[344, 382], [84, 395]]`
+
+Esta es la mejor configuración secuencial actual. Supera al Random Forest por bloques en F1 de la clase `walking`, aunque a costa de mantener un número considerable de falsos positivos.
+
 ## Documentación
 
 La documentación con Sphinx está en:
@@ -839,16 +869,31 @@ Ficheros versionados de referencia metodológica:
   Barrido de umbrales de la variante transformer con validación interna.
 
 * `results/transformer_sequence_summary_group_val_small.json`
-  Resumen de la mejor variante transformer actual, más pequeña y regularizada.
+  Resumen de la variante transformer más pequeña y regularizada.
 
 * `results/transformer_sequence_cv_results_group_val_small.csv`
-  Métricas por fold de la mejor variante transformer actual.
+  Métricas por fold de la variante transformer más pequeña y regularizada.
 
 * `results/transformer_sequence_cv_predictions_group_val_small.csv`
-  Predicciones out-of-fold de la mejor variante transformer actual.
+  Predicciones out-of-fold de la variante transformer más pequeña y regularizada.
 
 * `results/transformer_sequence_threshold_sweep_group_val_small.csv`
-  Barrido de umbrales de la mejor variante transformer actual.
+  Barrido de umbrales de la variante transformer más pequeña y regularizada.
+
+* `results/transformer_sequence_summary_group_val_small_ls005.json`
+  Resumen de la mejor variante transformer actual con label smoothing.
+
+* `results/transformer_sequence_cv_results_group_val_small_ls005.csv`
+  Métricas por fold de la mejor variante transformer actual.
+
+* `results/transformer_sequence_cv_predictions_group_val_small_ls005.csv`
+  Predicciones out-of-fold de la mejor variante transformer actual.
+
+* `results/transformer_sequence_threshold_sweep_group_val_small_ls005.csv`
+  Barrido amplio de umbrales de la mejor variante transformer actual.
+
+* `results/transformer_sequence_threshold_sweep_group_val_small_ls005_fine.csv`
+  Barrido fino de umbrales de la mejor variante transformer actual.
 
 ## Artefactos de referencia recomendados
 

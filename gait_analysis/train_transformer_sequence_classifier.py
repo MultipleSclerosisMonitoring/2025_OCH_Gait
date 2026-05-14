@@ -42,6 +42,8 @@ class TrainConfig:
     class_weight_mode: str
     pooling: str
     validation_mode: str
+    label_smoothing: float
+    weight_decay: float
 
 
 class SequenceTransformerClassifier(nn.Module):
@@ -128,6 +130,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dropout", type=float, default=0.15)
     p.add_argument("--patience", type=int, default=12)
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument(
+        "--label-smoothing",
+        type=float,
+        default=0.0,
+        help="Suavizado de etiquetas para CrossEntropyLoss",
+    )
+    p.add_argument(
+        "--weight-decay",
+        type=float,
+        default=1e-3,
+        help="Regularizacion L2 de AdamW",
+    )
     p.add_argument(
         "--class-weight-mode",
         choices=["balanced", "none"],
@@ -238,11 +252,14 @@ def train_one_fold(
         pooling=config.pooling,
     )
     weight = class_weights(y_train) if config.class_weight_mode == "balanced" else None
-    criterion = nn.CrossEntropyLoss(weight=weight)
+    criterion = nn.CrossEntropyLoss(
+        weight=weight,
+        label_smoothing=config.label_smoothing,
+    )
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=config.learning_rate,
-        weight_decay=1e-3,
+        weight_decay=config.weight_decay,
     )
     loader = make_loader(X_train, y_train, config.batch_size, shuffle=True)
     val_loader = (
@@ -334,6 +351,8 @@ def main() -> None:
         class_weight_mode=args.class_weight_mode,
         pooling=args.pooling,
         validation_mode=args.validation_mode,
+        label_smoothing=args.label_smoothing,
+        weight_decay=args.weight_decay,
     )
     set_seed(config.seed)
 

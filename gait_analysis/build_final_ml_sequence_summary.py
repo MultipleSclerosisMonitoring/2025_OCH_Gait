@@ -175,6 +175,37 @@ def add_transformer_threshold_row(rows: list[dict], path: Path) -> None:
     )
 
 
+def add_named_transformer_threshold_row(
+    rows: list[dict],
+    path: Path,
+    method: str,
+    comment: str,
+) -> None:
+    """Append best threshold row from a transformer sweep with a custom label."""
+    if not path.exists():
+        return
+    sweep = pd.read_csv(path)
+    best = sweep.sort_values(
+        ["f1_walking", "precision_walking", "accuracy"],
+        ascending=False,
+    ).iloc[0]
+    rows.append(
+        {
+            "method": method,
+            "evaluation": f"Temporal sequence block CV threshold={best['threshold']:.2f}",
+            "accuracy": rounded(best["accuracy"]),
+            "precision_walking": rounded(best["precision_walking"]),
+            "recall_walking": rounded(best["recall_walking"]),
+            "f1_walking": rounded(best["f1_walking"]),
+            "tn": int(best["tn"]),
+            "fp": int(best["fp"]),
+            "fn": int(best["fn"]),
+            "tp": int(best["tp"]),
+            "comment": comment,
+        }
+    )
+
+
 def build_summary() -> pd.DataFrame:
     """Build final summary dataframe from existing result artifacts."""
     rows: list[dict] = []
@@ -250,6 +281,24 @@ def build_summary() -> pd.DataFrame:
         comment=(
             "Transformer mas pequeno y regularizado; es la mejor variante "
             "secuencial actual y queda muy cerca del RF por bloques."
+        ),
+    )
+    add_transformer_row(
+        rows,
+        Path("results/transformer_sequence_summary_group_val_small_ls005.json"),
+        method="Transformer small group-val label-smoothing",
+        comment=(
+            "Transformer pequeno con validacion interna y label smoothing; "
+            "supera ligeramente al RF por bloques antes de ajustar umbral."
+        ),
+    )
+    add_named_transformer_threshold_row(
+        rows,
+        Path("results/transformer_sequence_threshold_sweep_group_val_small_ls005_fine.csv"),
+        method="Transformer small group-val label-smoothing",
+        comment=(
+            "Mejor variante transformer actual tras ajustar umbral; supera "
+            "al RF por bloques en F1 walking, aunque mantiene falsos positivos."
         ),
     )
 
