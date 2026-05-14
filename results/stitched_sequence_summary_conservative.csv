@@ -1,0 +1,2 @@
+scope,segments,threshold,min_run_windows,rows,accuracy,precision_walking,recall_walking,f1_walking,tn,fp,fn,tp
+same_patient,4,0.65,3,388,0.6726804123711341,0.047244094488188976,0.5,0.08633093525179857,255,121,6,6

@@ -449,6 +449,22 @@ El script toma los segmentos válidos de `sequence_evaluation_windows.csv`, conc
 
 Este experimento ya produce la salida temporal solicitada (`t`, etiqueta real, predicción y probabilidad), guardada en `results/stitched_sequence_predictions.csv`. Debe interpretarse con cautela porque el conjunto disponible tiene muchos más puntos de no marcha que de marcha y solo un tramo corto de marcha válido para esta prueba.
 
+Como los falsos positivos siguen siendo altos, se ha añadido un barrido específico de reglas más conservadoras:
+
+```bash
+poetry run python -m gait_analysis.tune_stitched_sequence_smoothing
+```
+
+En los segmentos concatenados de mismos pacientes, el mejor F1 sigue apareciendo con `threshold=0.65`, `min_run_windows=2`. Si se exige conservar al menos `recall >= 0.50`, la opción más conservadora es `threshold=0.65`, `min_run_windows=3`:
+
+* falsos positivos: baja de `137` a `121`
+* verdaderos positivos: baja de `8` a `6`
+* recall (`walking`): baja de `0.6667` a `0.5000`
+* F1-score (`walking`): baja de `0.1019` a `0.0863`
+* matriz de confusión (`not_walking`, `walking`): `[[255, 121], [6, 6]]`
+
+Por tanto, aumentar la persistencia temporal reduce falsos positivos, pero empieza a eliminar marcha real. Las configuraciones que dejan los falsos positivos en `0` también dejan los verdaderos positivos en `0`, por lo que no son útiles como detector de marcha.
+
 La evaluación separada en pacientes totalmente nuevos se ejecuta con:
 
 ```bash
@@ -467,7 +483,7 @@ Con los datos disponibles actualmente solo hay un segmento válido de paciente n
 * falsos positivos: `130`
 * matriz de confusión (`not_walking`, `walking`): `[[302, 130], [0, 0]]`
 
-Para cerrar completamente este punto faltan segmentos válidos de `walking` en pacientes nuevos.
+Con `min_run_windows=3`, los falsos positivos bajan de `130` a `102`, pero no es posible seleccionar una regla final solo con este segmento porque no contiene ningún positivo real. Las reglas que dejan `0` falsos positivos en paciente nuevo equivalen a no predecir marcha en ese tramo. Para cerrar completamente este punto faltan segmentos válidos de `walking` en pacientes nuevos.
 
 La tabla final consolidada de la parte clásica de ML y evaluación secuencial se genera con:
 
@@ -697,6 +713,7 @@ Módulos base del paquete:
 * `gait_analysis/run_sequence_evaluation.py`
 * `gait_analysis/build_stitched_sequence_evaluation.py`
 * `gait_analysis/train_transformer_sequence_classifier.py`
+* `gait_analysis/tune_stitched_sequence_smoothing.py`
 * `gait_analysis/tune_transformer_sequence_threshold.py`
 * `gait_analysis/tune_transformer_temporal_smoothing.py`
 * `gait_analysis/write_baseline_summary.py`
@@ -784,6 +801,12 @@ La evaluación separada sobre pacientes nuevos se ejecuta con:
 
 ```text
 poetry run python -m gait_analysis.build_stitched_sequence_evaluation --scope new_patient
+```
+
+El barrido conservador sobre la secuencia concatenada se ejecuta con:
+
+```text
+poetry run python -m gait_analysis.tune_stitched_sequence_smoothing
 ```
 
 La tabla final consolidada de ML clásico y evaluación secuencial se genera con:
@@ -929,6 +952,24 @@ Ficheros versionados de referencia metodológica:
 
 * `results/stitched_sequence_summary_new_patient.csv`
   Métricas agregadas de la evaluación separada en pacientes nuevos.
+
+* `results/stitched_sequence_predictions_conservative.csv`
+  Variante más conservadora de la secuencia concatenada de pacientes ya conocidos.
+
+* `results/stitched_sequence_summary_conservative.csv`
+  Métricas de la variante más conservadora que conserva `recall >= 0.50`.
+
+* `results/stitched_sequence_predictions_new_patient_conservative.csv`
+  Variante más conservadora de la secuencia concatenada de pacientes nuevos.
+
+* `results/stitched_sequence_summary_new_patient_conservative.csv`
+  Métricas de la variante más conservadora en pacientes nuevos.
+
+* `results/stitched_sequence_smoothing_sweep.csv`
+  Barrido conservador de umbral y persistencia temporal sobre mismos pacientes.
+
+* `results/stitched_sequence_smoothing_sweep_new_patient.csv`
+  Barrido conservador de umbral y persistencia temporal sobre pacientes nuevos.
 
 * `results/transformer_sequence_dataset_summary.json`
   Resumen del dataset secuencial inicial para modelos tipo transformer.
