@@ -643,6 +643,41 @@ El mejor compromiso actual aparece con `threshold=0.43` y `min_run_windows=8`:
 
 Frente al ajuste de umbral sin suavizado, los falsos positivos bajan de `382` a `312` y el F1 sube ligeramente de `0.6290` a `0.6303`. Si se prioriza todavía más reducir falsos positivos, la combinación `threshold=0.49` y `min_run_windows=10` baja los falsos positivos a `280`, con F1 `0.6162`.
 
+Para aplicar el transformer sobre tramos temporales reales, se ha entrenado además un artefacto final reutilizable:
+
+```bash
+poetry run python -m gait_analysis.train_final_transformer_sequence_model
+```
+
+Este comando guarda `models/final_transformer_sequence_model.pt`. Las métricas internas de este entrenamiento son altas (`F1 walking = 0.9203`), pero están calculadas sobre el mismo conjunto usado para entrenar y solo sirven como comprobación de ajuste, no como estimación de generalización.
+
+La inferencia transformer sobre una secuencia raw se ejecuta con:
+
+```bash
+poetry run python -m gait_analysis.predict_transformer_walking_sequence \
+  -q "47046344M-104" \
+  -f "2024-10-15 07:30:02" \
+  -u "2024-10-15 07:30:16"
+```
+
+La evaluación automática de los segmentos configurados se ejecuta con:
+
+```bash
+poetry run python -m gait_analysis.run_transformer_sequence_evaluation
+```
+
+Sobre los segmentos no vistos de mismos pacientes, usando `threshold=0.43` y `min_run_windows=8`, el resultado concatenado actual es:
+
+* segmentos concatenados: `4`
+* ventanas evaluadas: `356`
+* accuracy: `0.4017`
+* precision (`walking`): `0.0184`
+* recall (`walking`): `1.0000`
+* F1-score (`walking`): `0.0362`
+* matriz de confusión (`not_walking`, `walking`): `[[139, 213], [0, 4]]`
+
+El barrido posterior de umbral y suavizado sobre estas predicciones no resuelve el problema: la mejor combinación encontrada mantiene `203` falsos positivos. En el segmento disponible de paciente nuevo, que solo contiene `not_walking`, el transformer produce `284` falsos positivos con la regla base y `145` falsos positivos incluso con el barrido más conservador. Por tanto, el transformer entrenado con el dataset actual no generaliza mejor sobre secuencias raw concatenadas; este resultado refuerza que faltan segmentos negativos difíciles y marcha válida de pacientes nuevos.
+
 ## Documentación
 
 La documentación con Sphinx está en:
@@ -726,8 +761,11 @@ Módulos base del paquete:
 * `gait_analysis/train_final_model.py`
 * `gait_analysis/evaluate_final_model.py`
 * `gait_analysis/predict_walking_sequence.py`
+* `gait_analysis/predict_transformer_walking_sequence.py`
 * `gait_analysis/run_sequence_evaluation.py`
+* `gait_analysis/run_transformer_sequence_evaluation.py`
 * `gait_analysis/build_stitched_sequence_evaluation.py`
+* `gait_analysis/train_final_transformer_sequence_model.py`
 * `gait_analysis/train_transformer_sequence_classifier.py`
 * `gait_analysis/tune_stitched_sequence_hysteresis.py`
 * `gait_analysis/tune_stitched_sequence_smoothing.py`
@@ -866,6 +904,18 @@ El suavizado temporal del transformer para reducir falsos positivos se ejecuta c
 
 ```text
 poetry run python -m gait_analysis.tune_transformer_temporal_smoothing
+```
+
+El transformer final para inferencia raw se entrena con:
+
+```text
+poetry run python -m gait_analysis.train_final_transformer_sequence_model
+```
+
+La evaluación transformer sobre segmentos raw configurados se ejecuta con:
+
+```text
+poetry run python -m gait_analysis.run_transformer_sequence_evaluation
 ```
 
 La tabla final versionada de resultados está en:
@@ -1062,6 +1112,51 @@ Ficheros versionados de referencia metodológica:
 
 * `results/transformer_temporal_smoothing_sweep_fine.csv`
   Barrido fino de suavizado temporal aplicado al mejor transformer actual.
+
+* `models/final_transformer_sequence_model.pt`
+  Artefacto final del transformer secuencial para inferencia sobre tramos raw.
+
+* `results/final_transformer_sequence_model_summary.json`
+  Resumen del entrenamiento del transformer final. Sus métricas son de entrenamiento, no de generalización.
+
+* `results/transformer_raw_sequence_prediction_smoke.csv`
+  Prueba de inferencia transformer sobre un espectrograma ya extraído.
+
+* `results/transformer_sequence_eval_results.csv`
+  Métricas por segmento de la evaluación transformer sobre mismos pacientes.
+
+* `results/transformer_sequence_eval_summary.csv`
+  Métricas agregadas de la evaluación transformer sobre mismos pacientes.
+
+* `results/transformer_sequence_eval_predictions.csv`
+  Predicciones temporales transformer sobre mismos pacientes.
+
+* `results/transformer_stitched_sequence_predictions.csv`
+  Secuencia concatenada transformer de mismos pacientes con suavizado temporal.
+
+* `results/transformer_stitched_sequence_summary.csv`
+  Métricas de la secuencia concatenada transformer de mismos pacientes.
+
+* `results/transformer_sequence_eval_temporal_smoothing_sweep.csv`
+  Barrido conservador sobre las probabilidades transformer en mismos pacientes.
+
+* `results/transformer_sequence_eval_results_new_patient.csv`
+  Métricas por segmento de la evaluación transformer en paciente nuevo.
+
+* `results/transformer_sequence_eval_summary_new_patient.csv`
+  Métricas agregadas de la evaluación transformer en paciente nuevo.
+
+* `results/transformer_sequence_eval_predictions_new_patient.csv`
+  Predicciones temporales transformer en paciente nuevo.
+
+* `results/transformer_stitched_sequence_predictions_new_patient.csv`
+  Secuencia concatenada transformer del paciente nuevo disponible.
+
+* `results/transformer_stitched_sequence_summary_new_patient.csv`
+  Métricas de la secuencia concatenada transformer en paciente nuevo.
+
+* `results/transformer_sequence_eval_temporal_smoothing_sweep_new_patient.csv`
+  Barrido conservador sobre las probabilidades transformer en paciente nuevo.
 
 ## Artefactos de referencia recomendados
 
