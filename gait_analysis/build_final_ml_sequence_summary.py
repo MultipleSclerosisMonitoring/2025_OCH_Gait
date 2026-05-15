@@ -239,6 +239,36 @@ def add_transformer_temporal_smoothing_row(rows: list[dict], path: Path) -> None
     )
 
 
+def add_consensus_row(rows: list[dict], path: Path) -> None:
+    """Append RF + transformer consensus row when available."""
+    if not path.exists():
+        return
+    row = pd.read_csv(path).iloc[0]
+    rows.append(
+        {
+            "method": "RF + Transformer consensus",
+            "evaluation": (
+                "Raw stitched sequence "
+                f"RF={row['rf_threshold']:.2f} "
+                f"Transformer={row['transformer_threshold']:.2f} "
+                f"min_run={int(row['min_run_windows'])}"
+            ),
+            "accuracy": rounded(row["accuracy"]),
+            "precision_walking": rounded(row["precision_walking"]),
+            "recall_walking": rounded(row["recall_walking"]),
+            "f1_walking": rounded(row["f1_walking"]),
+            "tn": int(row["tn"]),
+            "fp": int(row["fp"]),
+            "fn": int(row["fn"]),
+            "tp": int(row["tp"]),
+            "comment": (
+                "Compuerta de consenso sobre tramos raw; reduce falsos "
+                "positivos frente a RF o transformer aislados."
+            ),
+        }
+    )
+
+
 def build_summary() -> pd.DataFrame:
     """Build final summary dataframe from existing result artifacts."""
     rows: list[dict] = []
@@ -337,6 +367,10 @@ def build_summary() -> pd.DataFrame:
     add_transformer_temporal_smoothing_row(
         rows,
         Path("results/transformer_temporal_smoothing_sweep_fine.csv"),
+    )
+    add_consensus_row(
+        rows,
+        Path("results/transformer_rf_consensus_summary_unweighted_nols.csv"),
     )
 
     return pd.DataFrame(rows).reindex(columns=OUTPUT_COLUMNS)

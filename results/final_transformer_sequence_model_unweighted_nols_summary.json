@@ -1,0 +1,47 @@
+{
+  "input": "salidas_test/auto_extracts/transformer_sequence_dataset_len9.npz",
+  "output": "models/final_transformer_sequence_model_unweighted_nols.pt",
+  "rows": 1205,
+  "sequence_shape": [
+    1205,
+    9,
+    72
+  ],
+  "feature_columns": 72,
+  "class_counts": {
+    "not_walking": 726,
+    "walking": 479
+  },
+  "references": {
+    "02548893X-118": 110,
+    "04845288Q-121": 450,
+    "47046344M-104": 645
+  },
+  "train_loss": 0.18595656870227112,
+  "epochs_used": 80,
+  "train_metrics": {
+    "accuracy": 0.9510373443983402,
+    "precision_walking": 0.9794520547945206,
+    "recall_walking": 0.8956158663883089,
+    "f1_walking": 0.935659760087241
+  },
+  "train_probability_mean": 0.3832837641239166,
+  "config": {
+    "epochs": 80,
+    "batch_size": 64,
+    "learning_rate": 0.001,
+    "d_model": 16,
+    "nhead": 4,
+    "num_layers": 1,
+    "dim_feedforward": 32,
+    "dropout": 0.3,
+    "patience": 12,
+    "seed": 42,
+    "class_weight_mode": "none",
+    "pooling": "center",
+    "validation_mode": "none",
+    "label_smoothing": 0.0,
+    "weight_decay": 0.001
+  },
+  "note": "M\u00e9tricas calculadas sobre el conjunto completo de entrenamiento; usar solo como comprobaci\u00f3n de ajuste, no como generalizaci\u00f3n."
+}

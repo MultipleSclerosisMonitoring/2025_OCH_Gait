@@ -1,0 +1,5 @@
+Reference,from_time,until_time,expected_content,seen_patient,prediction_file,rows,valid_rows,accuracy,precision_walking,recall_walking,f1_walking,tn,fp,fn,tp
+47046344M-104,2024-10-15 07:30:02,2024-10-15 07:30:16,walking,True,salidas_test/transformer_sequence_predictions/47046344M_104_20241015_073002_20241015_073016_transformer_predictions.csv,4,4,1.0,1.0,1.0,1.0,0,0,0,4
+47046344M-104,2024-10-15 07:41:10,2024-10-15 07:43:24,not_walking,True,salidas_test/transformer_sequence_predictions/47046344M_104_20241015_074110_20241015_074324_transformer_predictions.csv,124,124,0.20967741935483872,0.0,0.0,0.0,26,98,0,0
+47046344M-104,2024-10-15 07:35:38,2024-10-15 07:37:09,not_walking,True,salidas_test/transformer_sequence_predictions/47046344M_104_20241015_073538_20241015_073709_transformer_predictions.csv,81,81,0.024691358024691357,0.0,0.0,0.0,2,79,0,0
+02548893X-118,2025-02-28 09:59:46,2025-02-28 10:02:23,not_walking,True,salidas_test/transformer_sequence_predictions/02548893X_118_20250228_095946_20250228_100223_transformer_predictions.csv,147,147,0.7210884353741497,0.0,0.0,0.0,106,41,0,0

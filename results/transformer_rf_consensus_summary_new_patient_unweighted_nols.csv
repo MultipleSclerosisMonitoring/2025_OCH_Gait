@@ -1,0 +1,2 @@
+transformer_threshold,rf_threshold,min_run_windows,rows,accuracy,precision_walking,recall_walking,f1_walking,tn,fp,fn,tp
+0.65,0.65,3,424,0.7688679245283019,0.0,0.0,0.0,326,98,0,0

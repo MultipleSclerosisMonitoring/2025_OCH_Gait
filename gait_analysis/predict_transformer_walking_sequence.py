@@ -41,7 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "-m",
         "--model",
-        default="models/final_transformer_sequence_model_unweighted.pt",
+        default="models/final_transformer_sequence_model_unweighted_nols.pt",
         help="Artefacto transformer guardado con torch.save",
     )
     p.add_argument("-o", "--output", help="CSV de salida")

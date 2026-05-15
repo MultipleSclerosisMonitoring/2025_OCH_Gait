@@ -649,7 +649,7 @@ Para aplicar el transformer sobre tramos temporales reales, se ha entrenado adem
 poetry run python -m gait_analysis.train_final_transformer_sequence_model
 ```
 
-La variante recomendada para inferencia raw se entrena sin `class_weight="balanced"` porque reduce la tendencia a sobrepredecir marcha. Este comando guarda `models/final_transformer_sequence_model_unweighted.pt`. Las métricas internas de este entrenamiento son altas (`F1 walking = 0.9353`), pero están calculadas sobre el mismo conjunto usado para entrenar y solo sirven como comprobación de ajuste, no como estimación de generalización.
+La variante recomendada para inferencia raw se entrena sin `class_weight="balanced"` y sin `label_smoothing`, porque esta combinación reduce la tendencia a sobrepredecir marcha. Este comando guarda `models/final_transformer_sequence_model_unweighted_nols.pt`. Las métricas internas de este entrenamiento son altas (`F1 walking = 0.9357`), pero están calculadas sobre el mismo conjunto usado para entrenar y solo sirven como comprobación de ajuste, no como estimación de generalización.
 
 La inferencia transformer sobre una secuencia raw se ejecuta con:
 
@@ -676,7 +676,24 @@ Sobre los segmentos no vistos de mismos pacientes, usando el transformer sin pes
 * F1-score (`walking`): `0.0390`
 * matriz de confusión (`not_walking`, `walking`): `[[155, 197], [0, 4]]`
 
-Frente al transformer con pesos balanceados, esta variante baja los falsos positivos en mismos pacientes de `213` a `197`. El barrido posterior de umbral y suavizado mejora ligeramente hasta `192` falsos positivos manteniendo los `4` verdaderos positivos (`threshold=0.65`, `min_run_windows=3`). En el segmento disponible de paciente nuevo, que solo contiene `not_walking`, la variante sin pesos baja de `284` a `246` falsos positivos con la regla base, y el barrido más conservador baja hasta `87` falsos positivos. Aun así, el resultado sigue siendo insuficiente como detector robusto; la mejora confirma que los pesos de clase estaban amplificando falsos positivos, pero el cuello de botella principal sigue siendo la falta de negativos difíciles y marcha válida de pacientes nuevos.
+Frente al transformer con pesos balanceados, esta variante baja los falsos positivos en mismos pacientes de `213` a `197`. Al quitar además `label_smoothing`, la regla base baja a `191` falsos positivos manteniendo los `4` verdaderos positivos. En el segmento disponible de paciente nuevo, que solo contiene `not_walking`, esta variante produce `242` falsos positivos con la regla base.
+
+La mejor mejora actual no es usar el transformer de forma aislada, sino una compuerta de consenso RF + transformer. Se acepta `walking` solo si ambos modelos superan su umbral y la activación persiste temporalmente:
+
+```bash
+poetry run python -m gait_analysis.tune_transformer_rf_consensus
+```
+
+Con `transformer_threshold=0.65`, `rf_threshold=0.65` y `min_run_windows=3`, el resultado sobre los puntos comparables de mismos pacientes es:
+
+* ventanas evaluadas: `356`
+* accuracy: `0.7247`
+* precision (`walking`): `0.0300`
+* recall (`walking`): `0.7500`
+* F1-score (`walking`): `0.0577`
+* matriz de confusión (`not_walking`, `walking`): `[[255, 97], [1, 3]]`
+
+Esta compuerta reduce los falsos positivos de `191` a `97`, manteniendo `3` de `4` verdaderos positivos. En el segmento disponible de paciente nuevo, la misma regla deja `98` falsos positivos. Si se optimiza solo para ese segmento negativo, existen reglas con `0` falsos positivos, pero no son seleccionables como detector final porque no hay marcha real de paciente nuevo para medir sensibilidad.
 
 ## Documentación
 
@@ -769,6 +786,7 @@ Módulos base del paquete:
 * `gait_analysis/train_transformer_sequence_classifier.py`
 * `gait_analysis/tune_stitched_sequence_hysteresis.py`
 * `gait_analysis/tune_stitched_sequence_smoothing.py`
+* `gait_analysis/tune_transformer_rf_consensus.py`
 * `gait_analysis/tune_transformer_sequence_threshold.py`
 * `gait_analysis/tune_transformer_temporal_smoothing.py`
 * `gait_analysis/write_baseline_summary.py`
@@ -916,6 +934,12 @@ La evaluación transformer sobre segmentos raw configurados se ejecuta con:
 
 ```text
 poetry run python -m gait_analysis.run_transformer_sequence_evaluation
+```
+
+La compuerta de consenso RF + transformer se ejecuta con:
+
+```text
+poetry run python -m gait_analysis.tune_transformer_rf_consensus
 ```
 
 La tabla final versionada de resultados está en:
@@ -1120,7 +1144,7 @@ Ficheros versionados de referencia metodológica:
   Resumen del entrenamiento del transformer con pesos balanceados.
 
 * `models/final_transformer_sequence_model_unweighted.pt`
-  Artefacto recomendado del transformer secuencial sin pesos de clase para inferencia sobre tramos raw.
+  Artefacto previo del transformer secuencial sin pesos de clase.
 
 * `results/final_transformer_sequence_model_unweighted_summary.json`
   Resumen del entrenamiento del transformer sin pesos de clase.
@@ -1199,6 +1223,48 @@ Ficheros versionados de referencia metodológica:
 
 * `results/transformer_sequence_eval_temporal_smoothing_sweep_new_patient_unweighted.csv`
   Barrido conservador del transformer sin pesos en paciente nuevo.
+
+* `models/final_transformer_sequence_model_unweighted_nols.pt`
+  Artefacto recomendado del transformer sin pesos de clase ni label smoothing.
+
+* `results/final_transformer_sequence_model_unweighted_nols_summary.json`
+  Resumen del entrenamiento de la variante sin pesos ni label smoothing.
+
+* `results/transformer_sequence_eval_predictions_unweighted_nols.csv`
+  Predicciones temporales de la variante sin pesos ni label smoothing sobre mismos pacientes.
+
+* `results/transformer_stitched_sequence_summary_unweighted_nols.csv`
+  Métricas de la secuencia concatenada de la variante sin pesos ni label smoothing.
+
+* `results/transformer_sequence_eval_temporal_smoothing_sweep_unweighted_nols.csv`
+  Barrido conservador de la variante sin pesos ni label smoothing sobre mismos pacientes.
+
+* `results/transformer_sequence_eval_predictions_new_patient_unweighted_nols.csv`
+  Predicciones temporales de la variante sin pesos ni label smoothing en paciente nuevo.
+
+* `results/transformer_stitched_sequence_summary_new_patient_unweighted_nols.csv`
+  Métricas de la variante sin pesos ni label smoothing en paciente nuevo.
+
+* `results/transformer_sequence_eval_temporal_smoothing_sweep_new_patient_unweighted_nols.csv`
+  Barrido conservador de la variante sin pesos ni label smoothing en paciente nuevo.
+
+* `results/transformer_rf_consensus_sweep_unweighted_nols.csv`
+  Barrido de consenso RF + transformer sobre mismos pacientes.
+
+* `results/transformer_rf_consensus_predictions_unweighted_nols.csv`
+  Predicciones de consenso RF + transformer sobre mismos pacientes.
+
+* `results/transformer_rf_consensus_summary_unweighted_nols.csv`
+  Métricas de consenso RF + transformer sobre mismos pacientes.
+
+* `results/transformer_rf_consensus_sweep_new_patient_unweighted_nols.csv`
+  Barrido de consenso RF + transformer en paciente nuevo.
+
+* `results/transformer_rf_consensus_predictions_new_patient_unweighted_nols.csv`
+  Predicciones de consenso RF + transformer en paciente nuevo.
+
+* `results/transformer_rf_consensus_summary_new_patient_unweighted_nols.csv`
+  Métricas de consenso RF + transformer en paciente nuevo.
 
 ## Artefactos de referencia recomendados
 

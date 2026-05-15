@@ -79,7 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--model",
-        default="models/final_transformer_sequence_model_unweighted.pt",
+        default="models/final_transformer_sequence_model_unweighted_nols.pt",
         help="Artefacto transformer final",
     )
     p.add_argument("--threshold", type=float, default=0.43)
