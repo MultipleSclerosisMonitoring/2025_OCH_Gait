@@ -37,12 +37,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "-o",
         "--output",
-        default="models/final_transformer_sequence_model.pt",
+        default="models/final_transformer_sequence_model_unweighted.pt",
         help="Artefacto torch de salida",
     )
     p.add_argument(
         "--summary-output",
-        default="results/final_transformer_sequence_model_summary.json",
+        default="results/final_transformer_sequence_model_unweighted_summary.json",
         help="JSON resumen del entrenamiento final",
     )
     p.add_argument("--epochs", type=int, default=80)
@@ -60,7 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--class-weight-mode",
         choices=["balanced", "none"],
-        default="balanced",
+        default="none",
     )
     p.add_argument("--pooling", choices=["center", "mean"], default="center")
     return p

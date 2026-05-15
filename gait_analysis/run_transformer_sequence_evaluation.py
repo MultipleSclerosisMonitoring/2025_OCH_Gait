@@ -79,13 +79,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--model",
-        default="models/final_transformer_sequence_model.pt",
+        default="models/final_transformer_sequence_model_unweighted.pt",
         help="Artefacto transformer final",
     )
     p.add_argument("--threshold", type=float, default=0.43)
     p.add_argument("--min-run-windows", type=int, default=8)
     p.add_argument("--scope", choices=["same_patient", "new_patient", "all_valid"], default="same_patient")
     p.add_argument("--include-pending", action="store_true")
+    p.add_argument(
+        "--force-extract",
+        action="store_true",
+        help="Vuelve a consultar Influx aunque exista el espectrograma intermedio",
+    )
     return p
 
 
@@ -124,6 +129,7 @@ def run_prediction(row: pd.Series, args: argparse.Namespace, prediction_dir: Pat
     """Run transformer prediction for one configured segment."""
     block_id = make_block_id(str(row["Reference"]), str(row["from_time"]), str(row["until_time"]))
     output_path = prediction_dir / f"{block_id}_transformer_predictions.csv"
+    spectrogram_path = prediction_dir / f"{block_id}_spectrogram.parquet"
     cmd = [
         sys.executable,
         "-m",
@@ -142,7 +148,10 @@ def run_prediction(row: pd.Series, args: argparse.Namespace, prediction_dir: Pat
         str(args.threshold),
         "-o",
         str(output_path),
+        "--keep-intermediate",
     ]
+    if spectrogram_path.exists() and not args.force_extract:
+        cmd.extend(["--spectrogram-input", str(spectrogram_path)])
     print(">>>", " ".join(cmd))
     subprocess.run(cmd, check=True)
     return output_path

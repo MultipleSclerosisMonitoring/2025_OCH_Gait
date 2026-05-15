@@ -1,0 +1,2 @@
+scope,segments,threshold,rows,accuracy,precision_walking,recall_walking,f1_walking,tn,fp,fn,tp
+new_patient,1,0.43,424,0.3561320754716981,0.0,0.0,0.0,151,273,0,0

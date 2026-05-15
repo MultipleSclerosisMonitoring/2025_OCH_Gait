@@ -649,7 +649,7 @@ Para aplicar el transformer sobre tramos temporales reales, se ha entrenado adem
 poetry run python -m gait_analysis.train_final_transformer_sequence_model
 ```
 
-Este comando guarda `models/final_transformer_sequence_model.pt`. Las métricas internas de este entrenamiento son altas (`F1 walking = 0.9203`), pero están calculadas sobre el mismo conjunto usado para entrenar y solo sirven como comprobación de ajuste, no como estimación de generalización.
+La variante recomendada para inferencia raw se entrena sin `class_weight="balanced"` porque reduce la tendencia a sobrepredecir marcha. Este comando guarda `models/final_transformer_sequence_model_unweighted.pt`. Las métricas internas de este entrenamiento son altas (`F1 walking = 0.9353`), pero están calculadas sobre el mismo conjunto usado para entrenar y solo sirven como comprobación de ajuste, no como estimación de generalización.
 
 La inferencia transformer sobre una secuencia raw se ejecuta con:
 
@@ -666,17 +666,17 @@ La evaluación automática de los segmentos configurados se ejecuta con:
 poetry run python -m gait_analysis.run_transformer_sequence_evaluation
 ```
 
-Sobre los segmentos no vistos de mismos pacientes, usando `threshold=0.43` y `min_run_windows=8`, el resultado concatenado actual es:
+Sobre los segmentos no vistos de mismos pacientes, usando el transformer sin pesos de clase, `threshold=0.43` y `min_run_windows=8`, el resultado concatenado actual es:
 
 * segmentos concatenados: `4`
 * ventanas evaluadas: `356`
-* accuracy: `0.4017`
-* precision (`walking`): `0.0184`
+* accuracy: `0.4466`
+* precision (`walking`): `0.0199`
 * recall (`walking`): `1.0000`
-* F1-score (`walking`): `0.0362`
-* matriz de confusión (`not_walking`, `walking`): `[[139, 213], [0, 4]]`
+* F1-score (`walking`): `0.0390`
+* matriz de confusión (`not_walking`, `walking`): `[[155, 197], [0, 4]]`
 
-El barrido posterior de umbral y suavizado sobre estas predicciones no resuelve el problema: la mejor combinación encontrada mantiene `203` falsos positivos. En el segmento disponible de paciente nuevo, que solo contiene `not_walking`, el transformer produce `284` falsos positivos con la regla base y `145` falsos positivos incluso con el barrido más conservador. Por tanto, el transformer entrenado con el dataset actual no generaliza mejor sobre secuencias raw concatenadas; este resultado refuerza que faltan segmentos negativos difíciles y marcha válida de pacientes nuevos.
+Frente al transformer con pesos balanceados, esta variante baja los falsos positivos en mismos pacientes de `213` a `197`. El barrido posterior de umbral y suavizado mejora ligeramente hasta `192` falsos positivos manteniendo los `4` verdaderos positivos (`threshold=0.65`, `min_run_windows=3`). En el segmento disponible de paciente nuevo, que solo contiene `not_walking`, la variante sin pesos baja de `284` a `246` falsos positivos con la regla base, y el barrido más conservador baja hasta `87` falsos positivos. Aun así, el resultado sigue siendo insuficiente como detector robusto; la mejora confirma que los pesos de clase estaban amplificando falsos positivos, pero el cuello de botella principal sigue siendo la falta de negativos difíciles y marcha válida de pacientes nuevos.
 
 ## Documentación
 
@@ -1114,10 +1114,16 @@ Ficheros versionados de referencia metodológica:
   Barrido fino de suavizado temporal aplicado al mejor transformer actual.
 
 * `models/final_transformer_sequence_model.pt`
-  Artefacto final del transformer secuencial para inferencia sobre tramos raw.
+  Artefacto previo del transformer secuencial con pesos balanceados.
 
 * `results/final_transformer_sequence_model_summary.json`
-  Resumen del entrenamiento del transformer final. Sus métricas son de entrenamiento, no de generalización.
+  Resumen del entrenamiento del transformer con pesos balanceados.
+
+* `models/final_transformer_sequence_model_unweighted.pt`
+  Artefacto recomendado del transformer secuencial sin pesos de clase para inferencia sobre tramos raw.
+
+* `results/final_transformer_sequence_model_unweighted_summary.json`
+  Resumen del entrenamiento del transformer sin pesos de clase.
 
 * `results/transformer_raw_sequence_prediction_smoke.csv`
   Prueba de inferencia transformer sobre un espectrograma ya extraído.
@@ -1157,6 +1163,42 @@ Ficheros versionados de referencia metodológica:
 
 * `results/transformer_sequence_eval_temporal_smoothing_sweep_new_patient.csv`
   Barrido conservador sobre las probabilidades transformer en paciente nuevo.
+
+* `results/transformer_sequence_eval_results_unweighted.csv`
+  Métricas por segmento del transformer sin pesos sobre mismos pacientes.
+
+* `results/transformer_sequence_eval_summary_unweighted.csv`
+  Métricas agregadas del transformer sin pesos sobre mismos pacientes.
+
+* `results/transformer_sequence_eval_predictions_unweighted.csv`
+  Predicciones temporales del transformer sin pesos sobre mismos pacientes.
+
+* `results/transformer_stitched_sequence_predictions_unweighted.csv`
+  Secuencia concatenada del transformer sin pesos sobre mismos pacientes.
+
+* `results/transformer_stitched_sequence_summary_unweighted.csv`
+  Métricas de la secuencia concatenada del transformer sin pesos sobre mismos pacientes.
+
+* `results/transformer_sequence_eval_temporal_smoothing_sweep_unweighted.csv`
+  Barrido conservador del transformer sin pesos sobre mismos pacientes.
+
+* `results/transformer_sequence_eval_results_new_patient_unweighted.csv`
+  Métricas por segmento del transformer sin pesos en paciente nuevo.
+
+* `results/transformer_sequence_eval_summary_new_patient_unweighted.csv`
+  Métricas agregadas del transformer sin pesos en paciente nuevo.
+
+* `results/transformer_sequence_eval_predictions_new_patient_unweighted.csv`
+  Predicciones temporales del transformer sin pesos en paciente nuevo.
+
+* `results/transformer_stitched_sequence_predictions_new_patient_unweighted.csv`
+  Secuencia concatenada del transformer sin pesos en paciente nuevo.
+
+* `results/transformer_stitched_sequence_summary_new_patient_unweighted.csv`
+  Métricas de la secuencia concatenada del transformer sin pesos en paciente nuevo.
+
+* `results/transformer_sequence_eval_temporal_smoothing_sweep_new_patient_unweighted.csv`
+  Barrido conservador del transformer sin pesos en paciente nuevo.
 
 ## Artefactos de referencia recomendados
 
