@@ -50,6 +50,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directorio donde guardar predicciones por segmento",
     )
     p.add_argument(
+        "--spectrogram-cache-dir",
+        default=None,
+        help=(
+            "Directorio con parquets de espectrograma ya extraidos. Si contiene "
+            "<block_id>_spectrogram.parquet, se evita consultar InfluxDB."
+        ),
+    )
+    p.add_argument(
         "--results-output",
         default="results/sequence_evaluation_results.csv",
         help="CSV con metricas por segmento",
@@ -115,6 +123,7 @@ def run_prediction(
     config: str,
     model: str,
     threshold: float,
+    spectrogram_cache_dir: Path | None = None,
 ) -> Path:
     """Run predict_walking_sequence.py for one configured segment."""
     block_id = make_block_id(
@@ -123,6 +132,12 @@ def run_prediction(
         str(row["until_time"]),
     )
     output_path = prediction_dir / f"{block_id}_predictions.csv"
+    spectrogram_path = None
+    if spectrogram_cache_dir is not None:
+        candidate = spectrogram_cache_dir / f"{block_id}_spectrogram.parquet"
+        if candidate.exists():
+            spectrogram_path = candidate
+
     cmd = [
         sys.executable,
         "gait_analysis/predict_walking_sequence.py",
@@ -141,6 +156,8 @@ def run_prediction(
         "-o",
         str(output_path),
     ]
+    if spectrogram_path is not None:
+        cmd.extend(["--spectrogram-input", str(spectrogram_path)])
     print(">>>", " ".join(cmd))
     subprocess.run(cmd, check=True)
     return output_path
@@ -231,6 +248,9 @@ def main() -> None:
     args = build_parser().parse_args()
     input_path = Path(args.input)
     prediction_dir = Path(args.prediction_dir)
+    spectrogram_cache_dir = (
+        Path(args.spectrogram_cache_dir) if args.spectrogram_cache_dir else None
+    )
     results_output = Path(args.results_output)
     predictions_output = Path(args.predictions_output)
     summary_output = Path(args.summary_output)
@@ -257,6 +277,7 @@ def main() -> None:
             config=args.config,
             model=args.model,
             threshold=args.threshold,
+            spectrogram_cache_dir=spectrogram_cache_dir,
         )
         predictions = pd.read_csv(prediction_path)
         predictions["time_center"] = pd.to_datetime(

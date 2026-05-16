@@ -1,0 +1,12 @@
+Reference,from_time,until_time,expected_content,seen_patient,coverage_status,use_for_sequence_eval,notes
+47046344M-104,2024-10-15 07:30:02,2024-10-15 07:30:16,walking,True,valid_both_feet,True,unseen same-patient walking candidate; Right=692 Left=698
+47046344M-104,2024-10-15 07:41:10,2024-10-15 07:43:24,not_walking,True,valid_both_feet,True,unseen same-patient not_walking candidate; Right=6584 Left=6568
+47046344M-104,2024-10-15 07:35:38,2024-10-15 07:37:09,not_walking,True,valid_both_feet,True,unseen same-patient not_walking candidate; Right=4481 Left=4476
+04845288Q-121,2025-03-01 14:29:24,2025-03-01 14:32:06,walking,True,invalid_single_foot,False,unseen same-patient walking candidate; Right=0 Left=8022
+04845288Q-121,2025-03-01 14:32:26,2025-03-01 14:34:59,walking,True,invalid_single_foot,False,unseen same-patient walking candidate; Right=0 Left=7579
+330034-32,2025-02-25 11:29:22,2025-02-25 11:30:03,walking,False,invalid_no_data,False,new-patient walking candidate; Right=0 Left=0
+330034-32,2025-02-25 11:30:08,2025-02-25 11:32:31,not_walking,False,invalid_no_data,False,new-patient not_walking candidate; Right=0 Left=0
+663495-44,2025-03-22 18:02:12,2025-03-22 18:02:45,walking,False,invalid_no_data,False,new-patient walking candidate; Right=0 Left=0
+663495-44,2025-03-22 18:03:41,2025-03-22 18:04:11,not_walking,False,invalid_no_data,False,new-patient not_walking candidate; Right=0 Left=0
+05447093A-110,2024-05-09 12:19:26,2024-05-09 12:20:00,walking,False,invalid_no_data,False,new-patient walking candidate; Right=0 Left=0
+05447093A-110,2024-05-09 10:26:46,2024-05-09 10:34:00,not_walking,False,valid_both_feet,True,new-patient not_walking candidate; Right=21440 Left=21452

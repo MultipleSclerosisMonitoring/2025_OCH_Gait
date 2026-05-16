@@ -42,17 +42,39 @@ def build_parser() -> argparse.ArgumentParser:
         default="results/final_model_summary.json",
         help="Ruta donde guardar el resumen del entrenamiento",
     )
+    p.add_argument(
+        "--class-weight",
+        choices=["balanced", "none"],
+        default="balanced",
+        help="Ponderacion de clases para el Random Forest.",
+    )
+    p.add_argument(
+        "--max-depth",
+        type=int,
+        default=5,
+        help="Profundidad maxima de cada arbol.",
+    )
+    p.add_argument(
+        "--min-samples-leaf",
+        type=int,
+        default=10,
+        help="Minimo de muestras por hoja.",
+    )
     return p
 
 
-def build_model() -> RandomForestClassifier:
+def build_model(
+    class_weight: str,
+    max_depth: int,
+    min_samples_leaf: int,
+) -> RandomForestClassifier:
     """Return the selected final model with fixed parameters."""
     return RandomForestClassifier(
         n_estimators=300,
         random_state=42,
-        class_weight="balanced",
-        max_depth=5,
-        min_samples_leaf=10,
+        class_weight=None if class_weight == "none" else class_weight,
+        max_depth=max_depth,
+        min_samples_leaf=min_samples_leaf,
         max_features="sqrt",
     )
 
@@ -85,7 +107,11 @@ def main() -> None:
     X = df[feature_cols].copy()
     y = df["target"].astype(int)
 
-    model = build_model()
+    model = build_model(
+        class_weight=args.class_weight,
+        max_depth=args.max_depth,
+        min_samples_leaf=args.min_samples_leaf,
+    )
     model.fit(X, y)
 
     y_pred = model.predict(X)
