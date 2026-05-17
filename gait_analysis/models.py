@@ -48,6 +48,9 @@ class SpectrogramConfig:
         signals: Signal names to process.
         feet: Foot labels to process.
         resample_hz: Resampling frequency in Hz.
+        detrend: Baseline correction applied before periodogram.
+        max_interpolate_gap_s: Maximum sensor gap filled by interpolation.
+        min_window_completeness: Minimum real-sample completeness per window.
     """
 
     window_s: float
@@ -58,6 +61,9 @@ class SpectrogramConfig:
     signals: List[str]
     feet: List[str]
     resample_hz: float
+    detrend: str = "linear"
+    max_interpolate_gap_s: float = 0.25
+    min_window_completeness: float = 0.95
 
     def __post_init__(self) -> None:
         """Validate spectral analysis values.
@@ -83,6 +89,16 @@ class SpectrogramConfig:
             raise ValueError("spectrogram.window_type no puede estar vacío.")
         if self.power_scale.lower() not in {"db", "linear"}:
             raise ValueError("spectrogram.power_scale debe ser 'db' o 'linear'.")
+        if self.detrend.lower() not in {"constant", "linear", "none"}:
+            raise ValueError(
+                "spectrogram.detrend debe ser 'constant', 'linear' o 'none'."
+            )
+        if self.max_interpolate_gap_s < 0:
+            raise ValueError("spectrogram.max_interpolate_gap_s no puede ser negativo.")
+        if not 0 < self.min_window_completeness <= 1:
+            raise ValueError(
+                "spectrogram.min_window_completeness debe estar en el intervalo (0, 1]."
+            )
         if not self.signals:
             raise ValueError("spectrogram.signals debe contener al menos una señal.")
         if not self.feet:

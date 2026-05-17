@@ -253,7 +253,12 @@ class ExtractApp:
         foot_max: Dict[str, pd.Timestamp] = {}
 
         for foot, df in foot_data.items():
-            df_rs = Resampler.resample_dataframe(df, spec_cfg.resample_hz, spec_cfg.signals)
+            df_rs = Resampler.resample_dataframe(
+                df,
+                spec_cfg.resample_hz,
+                spec_cfg.signals,
+                max_interpolate_gap_s=spec_cfg.max_interpolate_gap_s,
+            )
             if df_rs.empty:
                 print(f"⚠️ No hay datos remuestreados para el pie {foot}.")
                 return
@@ -327,16 +332,27 @@ class ExtractApp:
                     valid_for_both = False
                     break
 
-                # Require complete window with no missing samples in selected signals
+                # Reject windows with excessive missing data after bounded interpolation.
                 expected_samples = int(round(spec_cfg.window_s * spec_cfg.resample_hz)) + 1
                 if len(window_df) < expected_samples:
                     valid_for_both = False
                     break
 
+                completeness = float(window_df[spec_cfg.signals].notna().mean().mean())
+                if completeness < spec_cfg.min_window_completeness:
+                    valid_for_both = False
+                    break
+
+                window_df = window_df.copy()
+                window_df[spec_cfg.signals] = (
+                    window_df[spec_cfg.signals]
+                    .interpolate(method="time", limit_direction="both")
+                )
                 if window_df[spec_cfg.signals].isna().any().any():
                     valid_for_both = False
                     break
 
+                window_df.attrs["sample_completeness"] = completeness
                 per_foot_windows[foot] = window_df
 
             if not valid_for_both:
@@ -358,6 +374,9 @@ class ExtractApp:
                         time_center=center_ts,
                         freqs=freqs,
                         powers=powers,
+                    )
+                    row["sample_completeness"] = float(
+                        window_df.attrs.get("sample_completeness", 1.0)
                     )
                     chunk_rows.append(row)
                     total_rows += 1

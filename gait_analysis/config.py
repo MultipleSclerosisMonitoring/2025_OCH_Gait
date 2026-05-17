@@ -87,6 +87,11 @@ class ConfigLoader:
             signals=list(spec_raw["signals"]),
             feet=list(spec_raw["feet"]),
             resample_hz=float(spec_raw["resample_hz"]),
+            detrend=str(spec_raw.get("detrend", "linear")),
+            max_interpolate_gap_s=float(spec_raw.get("max_interpolate_gap_s", 0.25)),
+            min_window_completeness=float(
+                spec_raw.get("min_window_completeness", 0.95)
+            ),
         )
 
         return AppConfig(

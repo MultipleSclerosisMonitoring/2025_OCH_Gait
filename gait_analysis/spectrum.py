@@ -49,12 +49,13 @@ class PowerSpectrumEngine:
                 f"{signal_values.size} != {self._expected_samples}."
             )
 
+        detrend = False if self._cfg.detrend.lower() == "none" else self._cfg.detrend
         _, powers = periodogram(
             signal_values,
             fs=self._cfg.resample_hz,
             window=self._window,
             scaling="density",
-            detrend="constant",
+            detrend=detrend,
         )
 
         powers = powers[self._freq_mask]

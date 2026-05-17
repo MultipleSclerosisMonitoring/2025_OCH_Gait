@@ -38,6 +38,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         help="CSV opcional para guardar los resultados por fold",
     )
+    p.add_argument(
+        "--embargo-seconds",
+        type=float,
+        default=0.0,
+        help=(
+            "Margen temporal eliminado del entrenamiento alrededor del bloque "
+            "de test para evitar fuga entre ventanas contiguas."
+        ),
+    )
     return p
 
 
@@ -93,12 +102,36 @@ def score_model(
     X: pd.DataFrame,
     y: pd.Series,
     groups: pd.Series,
+    metadata: pd.DataFrame,
+    embargo_seconds: float,
 ) -> pd.DataFrame:
     """Evaluate one model with Leave-One-Group-Out CV and return per-fold rows."""
     rows = []
     logo = LeaveOneGroupOut()
 
     for fold_idx, (train_idx, test_idx) in enumerate(logo.split(X, y, groups), start=1):
+        train_idx = pd.Index(train_idx)
+        test_metadata = metadata.iloc[test_idx]
+        if embargo_seconds > 0:
+            test_reference = str(test_metadata["reference"].iloc[0])
+            test_start = test_metadata["time_center"].min() - pd.Timedelta(
+                seconds=embargo_seconds
+            )
+            test_stop = test_metadata["time_center"].max() + pd.Timedelta(
+                seconds=embargo_seconds
+            )
+            train_metadata = metadata.iloc[train_idx]
+            keep_train = ~(
+                train_metadata["reference"].astype(str).eq(test_reference)
+                & train_metadata["time_center"].between(test_start, test_stop)
+            )
+            train_idx = train_idx[keep_train.to_numpy()]
+
+        if len(train_idx) == 0:
+            raise ValueError(
+                f"El embargo ha dejado el fold {fold_idx} sin datos de entrenamiento."
+            )
+
         estimator = clone(model)
         estimator.fit(X.iloc[train_idx], y.iloc[train_idx])
         y_test = y.iloc[test_idx]
@@ -110,6 +143,8 @@ def score_model(
                 "model": model_name,
                 "fold": fold_idx,
                 "group": group_name,
+                "embargo_seconds": float(embargo_seconds),
+                "train_rows": int(len(train_idx)),
                 "test_rows": int(len(test_idx)),
                 "test_not_walking": int((y_test == 0).sum()),
                 "test_walking": int((y_test == 1).sum()),
@@ -160,6 +195,7 @@ def main() -> None:
     feature_cols = get_feature_columns(df)
     X = df[feature_cols].copy()
     groups = df["group"]
+    metadata = df[["reference", "time_center"]].copy()
 
     print(f"Input parquet: {input_path}")
     print(f"Rows: {len(df)}")
@@ -184,7 +220,15 @@ def main() -> None:
     print()
 
     result_frames = [
-        score_model(name, model, X, y, groups)
+        score_model(
+            name,
+            model,
+            X,
+            y,
+            groups,
+            metadata=metadata,
+            embargo_seconds=args.embargo_seconds,
+        )
         for name, model in build_models().items()
     ]
     results = pd.concat(result_frames, ignore_index=True)
