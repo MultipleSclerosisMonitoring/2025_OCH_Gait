@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -38,13 +39,42 @@ def build_parser() -> argparse.ArgumentParser:
         default="salidas_test/auto_extracts",
         help="Directorio de trabajo para artefactos intermedios y finales",
     )
+    p.add_argument(
+        "--resume-existing",
+        action="store_true",
+        help="Reutiliza parquets ya generados para continuar un pipeline interrumpido.",
+    )
+    p.add_argument(
+        "--retries",
+        type=int,
+        default=3,
+        help="Número de intentos por comando antes de fallar.",
+    )
+    p.add_argument(
+        "--retry-sleep-seconds",
+        type=float,
+        default=10.0,
+        help="Segundos de espera entre reintentos.",
+    )
     return p
 
 
-def run_cmd(cmd: list[str]) -> None:
+def run_cmd(cmd: list[str], retries: int = 3, retry_sleep_seconds: float = 10.0) -> None:
     """Run one subprocess command and stop on failure."""
-    print(">>>", " ".join(cmd))
-    subprocess.run(cmd, check=True)
+    attempts = max(1, retries)
+    for attempt in range(1, attempts + 1):
+        print(">>>", " ".join(cmd))
+        try:
+            subprocess.run(cmd, check=True)
+            return
+        except subprocess.CalledProcessError:
+            if attempt >= attempts:
+                raise
+            print(
+                f">>> Command failed; retrying in {retry_sleep_seconds:g}s "
+                f"({attempt + 1}/{attempts})"
+            )
+            time.sleep(retry_sleep_seconds)
 
 
 def main() -> None:
@@ -81,37 +111,47 @@ def main() -> None:
         labeled_path = workdir / f"{block_id}_window_1s_labeled.parquet"
         filtered_path = workdir / f"{block_id}_window_1s_labeled_filtered.parquet"
 
-        run_cmd(
-            [
-                python_exe,
-                "extract_influx_hdf5.py",
-                "--mode",
-                "spectrogram",
-                "--config",
-                str(config_path),
-                "-f",
-                from_time,
-                "-u",
-                until_time,
-                "-q",
-                ref,
-                "-o",
-                str(spectrogram_path),
-            ]
-        )
+        if args.resume_existing and filtered_path.exists():
+            print(f">>> Reusing existing filtered parquet: {filtered_path}")
+        else:
+            if args.resume_existing and spectrogram_path.exists():
+                print(f">>> Reusing existing spectrogram parquet: {spectrogram_path}")
+            else:
+                run_cmd(
+                    [
+                        python_exe,
+                        "extract_influx_hdf5.py",
+                        "--mode",
+                        "spectrogram",
+                        "--config",
+                        str(config_path),
+                        "-f",
+                        from_time,
+                        "-u",
+                        until_time,
+                        "-q",
+                        ref,
+                        "-o",
+                        str(spectrogram_path),
+                    ],
+                    retries=args.retries,
+                    retry_sleep_seconds=args.retry_sleep_seconds,
+                )
 
-        run_cmd(
-            [
-                python_exe,
-                "gait_analysis/label_spectrogram_with_ground_truth.py",
-                "-i",
-                str(spectrogram_path),
-                "-g",
-                str(ground_truth_path),
-                "-o",
-                str(labeled_path),
-            ]
-        )
+            run_cmd(
+                [
+                    python_exe,
+                    "gait_analysis/label_spectrogram_with_ground_truth.py",
+                    "-i",
+                    str(spectrogram_path),
+                    "-g",
+                    str(ground_truth_path),
+                    "-o",
+                    str(labeled_path),
+                ],
+                retries=args.retries,
+                retry_sleep_seconds=args.retry_sleep_seconds,
+            )
 
         filtered_paths.append(str(filtered_path))
 
@@ -124,7 +164,9 @@ def main() -> None:
             *filtered_paths,
             "-o",
             str(combined_path),
-        ]
+        ],
+        retries=args.retries,
+        retry_sleep_seconds=args.retry_sleep_seconds,
     )
 
     wide_path = workdir / "main_combined_labeled_dataset_wide.parquet"
@@ -136,7 +178,9 @@ def main() -> None:
             str(combined_path),
             "-o",
             str(wide_path),
-        ]
+        ],
+        retries=args.retries,
+        retry_sleep_seconds=args.retry_sleep_seconds,
     )
 
     wide_clean_path = workdir / "main_combined_labeled_dataset_wide_clean.parquet"
@@ -148,7 +192,9 @@ def main() -> None:
             str(wide_path),
             "-o",
             str(wide_clean_path),
-        ]
+        ],
+        retries=args.retries,
+        retry_sleep_seconds=args.retry_sleep_seconds,
     )
 
     binary_features_path = workdir / "main_binary_window_features.parquet"
@@ -160,7 +206,9 @@ def main() -> None:
             str(wide_clean_path),
             "-o",
             str(binary_features_path),
-        ]
+        ],
+        retries=args.retries,
+        retry_sleep_seconds=args.retry_sleep_seconds,
     )
 
     print()

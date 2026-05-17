@@ -57,7 +57,11 @@ def build_models(y: pd.Series) -> dict[str, object]:
     scale_pos_weight = neg / pos
 
     return {
-        "random_forest": build_model(),
+        "random_forest": build_model(
+            class_weight="balanced",
+            max_depth=5,
+            min_samples_leaf=10,
+        ),
         "xgboost": XGBClassifier(
             n_estimators=300,
             max_depth=3,
