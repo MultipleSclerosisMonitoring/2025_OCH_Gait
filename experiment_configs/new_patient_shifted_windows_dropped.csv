@@ -1,0 +1,2 @@
+Reference,from_time,until_time,expected_content,offset_minutes,original_datefrom,original_dateuntil,duration_s,right_records,left_records,coverage_status,use_for_main_dataset,use_for_sequence_eval,drop_reason
+TABUENCA01-45,2024-04-25 14:48:19,2024-04-25 14:48:37,not_walking,-120,2024-04-25 16:48:19,2024-04-25 16:48:37,18.0,5274,3432,valid_both_feet_shifted,True,True,conflicting_label_overlap_shorter_interval
