@@ -37,6 +37,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Columna de probabilidad de marcha.",
     )
     p.add_argument(
+        "--threshold",
+        type=float,
+        default=None,
+        help=(
+            "Si se indica, recalcula la prediccion con probability_col >= threshold."
+        ),
+    )
+    p.add_argument(
+        "--gap-seconds",
+        type=float,
+        default=5.0,
+        help="Salto temporal que separa segmentos si no hay columnas de segmento.",
+    )
+    p.add_argument(
         "--top-n",
         type=int,
         default=20,
@@ -50,23 +64,74 @@ def segment_cols(df: pd.DataFrame) -> list[str]:
     cols = ["reference", "segment_from_time", "segment_until_time"]
     missing = [c for c in cols if c not in df.columns]
     if missing:
-        raise ValueError(f"Faltan columnas esperadas: {missing}")
+        return ["reference", "inferred_segment"]
     return cols
+
+
+def add_inferred_segments(df: pd.DataFrame, gap_seconds: float) -> pd.DataFrame:
+    """Add inferred temporal segments when explicit segment columns are absent."""
+    if {"segment_from_time", "segment_until_time"}.issubset(df.columns):
+        return df
+    output = df.sort_values(["reference", "time_center"]).copy()
+    gap = output.groupby("reference")["time_center"].diff()
+    ref_change = output["reference"].ne(output["reference"].shift())
+    gap_change = gap.gt(pd.Timedelta(seconds=gap_seconds)).fillna(False)
+    output["inferred_segment_id"] = (ref_change | gap_change).cumsum().astype(int)
+    output["inferred_segment"] = (
+        output["reference"].astype(str)
+        + "_segment_"
+        + output["inferred_segment_id"].astype(str)
+    )
+    return output
+
+
+def add_label_and_prediction_columns(
+    df: pd.DataFrame,
+    prediction_col: str,
+    probability_col: str,
+    threshold: float | None,
+) -> pd.DataFrame:
+    """Normalize label and prediction columns for false-positive analysis."""
+    output = df.copy()
+    if "true_label" not in output.columns:
+        if "mov_type" in output.columns:
+            output["true_label"] = output["mov_type"].astype(str)
+        elif "target" in output.columns:
+            output["true_label"] = output["target"].map(
+                {0: "not_walking", 1: "walking"}
+            )
+        else:
+            raise ValueError("Falta true_label, mov_type o target.")
+    if threshold is not None:
+        if probability_col not in output.columns:
+            raise ValueError(f"No existe probability_col={probability_col}")
+        output[prediction_col] = (
+            output[probability_col].astype(float) >= threshold
+        ).astype(int)
+    return output
 
 
 def summarize_runs(
     df: pd.DataFrame,
     prediction_col: str,
     probability_col: str,
+    gap_seconds: float,
+    threshold: float | None,
 ) -> pd.DataFrame:
     """Build one row per consecutive false-positive run."""
-    if prediction_col not in df.columns:
-        raise ValueError(f"No existe prediction_col={prediction_col}")
     if probability_col not in df.columns:
         raise ValueError(f"No existe probability_col={probability_col}")
 
-    df = df.copy()
-    df["time_center"] = pd.to_datetime(df["time_center"], utc=True)
+    df = add_label_and_prediction_columns(
+        df=df,
+        prediction_col=prediction_col,
+        probability_col=probability_col,
+        threshold=threshold,
+    )
+    if prediction_col not in df.columns:
+        raise ValueError(f"No existe prediction_col={prediction_col}")
+    df["time_center"] = pd.to_datetime(df["time_center"], utc=True, format="mixed")
+    df = add_inferred_segments(df, gap_seconds=gap_seconds)
     df = df.sort_values([*segment_cols(df), "time_center"]).reset_index(drop=True)
     df["is_false_positive"] = (
         (df["true_label"] == "not_walking") & (df[prediction_col].astype(int) == 1)
@@ -80,15 +145,19 @@ def summarize_runs(
             rows.append(
                 {
                     "reference": segment_key[0],
-                    "segment_from_time": segment_key[1],
-                    "segment_until_time": segment_key[2],
+                    "segment": "|".join(str(value) for value in segment_key),
                     "run_start": run["time_center"].iloc[0],
                     "run_end": run["time_center"].iloc[-1],
                     "windows": int(len(run)),
                     "mean_probability": float(run[probability_col].mean()),
                     "max_probability": float(run[probability_col].max()),
-                    "expected_content": run["expected_content"].iloc[0],
-                    "seen_patient": bool(run["seen_patient"].iloc[0]),
+                    "threshold": threshold,
+                    "expected_content": run["expected_content"].iloc[0]
+                    if "expected_content" in run.columns
+                    else "not_walking",
+                    "seen_patient": bool(run["seen_patient"].iloc[0])
+                    if "seen_patient" in run.columns
+                    else pd.NA,
                 }
             )
 
@@ -96,13 +165,13 @@ def summarize_runs(
         return pd.DataFrame(
             columns=[
                 "reference",
-                "segment_from_time",
-                "segment_until_time",
+                "segment",
                 "run_start",
                 "run_end",
                 "windows",
                 "mean_probability",
                 "max_probability",
+                "threshold",
                 "expected_content",
                 "seen_patient",
             ]
@@ -122,6 +191,8 @@ def main() -> None:
         df=df,
         prediction_col=args.prediction_col,
         probability_col=args.probability_col,
+        gap_seconds=args.gap_seconds,
+        threshold=args.threshold,
     )
 
     output = Path(args.output)
