@@ -18,7 +18,15 @@ if __package__ in {None, ""}:
 from gait_analysis.run_ml_model_comparison_cv3 import build_models
 
 
-ID_COLS = {"reference", "time_center", "mov_type", "target", "block_id", "group"}
+ID_COLS = {
+    "reference",
+    "time_center",
+    "mov_type",
+    "target",
+    "foot",
+    "block_id",
+    "group",
+}
 
 
 def build_parser() -> argparse.ArgumentParser:

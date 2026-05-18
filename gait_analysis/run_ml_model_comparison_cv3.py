@@ -20,7 +20,7 @@ if __package__ in {None, ""}:
 from gait_analysis.train_final_model import build_model
 
 
-ID_COLS = {"reference", "time_center", "mov_type", "target"}
+ID_COLS = {"reference", "time_center", "mov_type", "target", "foot"}
 
 
 def build_parser() -> argparse.ArgumentParser:
