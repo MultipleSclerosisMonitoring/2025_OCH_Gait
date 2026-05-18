@@ -1,0 +1,2 @@
+model,folds,test_rows_total,accuracy_mean,accuracy_sd,precision_walking_mean,precision_walking_sd,recall_walking_mean,recall_walking_sd,f1_walking_mean,f1_walking_sd,precision_macro_mean,precision_macro_sd,recall_macro_mean,recall_macro_sd,f1_macro_mean,f1_macro_sd
+random_forest,25,3372,0.6955954508674818,0.2876847917109946,0.5189730218355076,0.47260891570494473,0.4948519456565601,0.42372586874018114,0.4687277892514382,0.4150147836493535,0.5452204775008711,0.25506645748302914,0.5053358521168305,0.2775767515565485,0.495806989537144,0.2737468669395301

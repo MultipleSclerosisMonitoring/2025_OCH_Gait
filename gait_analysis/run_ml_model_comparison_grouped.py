@@ -71,6 +71,18 @@ def build_parser() -> argparse.ArgumentParser:
         default="results/ml_model_comparison_grouped_summary.csv",
         help="CSV con media y desviacion estandar por modelo.",
     )
+    p.add_argument(
+        "--prediction-output",
+        default=None,
+        help="CSV opcional con predicciones y probabilidades out-of-fold.",
+    )
+    p.add_argument(
+        "--models",
+        nargs="+",
+        choices=["random_forest", "xgboost", "catboost"],
+        default=["random_forest", "xgboost", "catboost"],
+        help="Modelos a evaluar.",
+    )
     return p
 
 
@@ -212,9 +224,15 @@ def main() -> None:
     metadata = df[["reference", "time_center"]].copy()
 
     rows = []
+    prediction_rows = []
     logo = LeaveOneGroupOut()
 
-    for model_name, model in build_models(y).items():
+    selected_models = {
+        name: model
+        for name, model in build_models(y).items()
+        if name in set(args.models)
+    }
+    for model_name, model in selected_models.items():
         for fold_idx, (train_idx_raw, test_idx_raw) in enumerate(
             logo.split(X, y, groups),
             start=1,
@@ -241,6 +259,13 @@ def main() -> None:
                 estimator.predict(X.iloc[test_idx]),
                 index=y_test.index,
             ).astype(int)
+            if hasattr(estimator, "predict_proba"):
+                y_prob = pd.Series(
+                    estimator.predict_proba(X.iloc[test_idx])[:, 1],
+                    index=y_test.index,
+                ).astype(float)
+            else:
+                y_prob = pd.Series(float("nan"), index=y_test.index)
 
             group_name = str(groups.iloc[test_idx].iloc[0])
             rows.append(
@@ -261,6 +286,24 @@ def main() -> None:
                     **score_predictions(y_test, y_pred),
                 }
             )
+            if args.prediction_output:
+                fold_predictions = df.iloc[test_idx][
+                    ["reference", "time_center", "mov_type", "target"]
+                ].copy()
+                if "foot" in df.columns:
+                    fold_predictions["foot"] = df.iloc[test_idx]["foot"].to_numpy()
+                fold_predictions["model"] = model_name
+                fold_predictions["fold"] = fold_idx
+                fold_predictions["group"] = group_name
+                fold_predictions["group_by"] = args.group_by
+                fold_predictions["embargo_seconds"] = float(
+                    args.embargo_seconds
+                    if args.group_by == "temporal_block"
+                    else 0.0
+                )
+                fold_predictions["prob_walking"] = y_prob.to_numpy()
+                fold_predictions["prediction"] = y_pred.to_numpy()
+                prediction_rows.append(fold_predictions)
 
     fold_results = pd.DataFrame(rows)
     summary = build_summary(fold_results)
@@ -269,6 +312,13 @@ def main() -> None:
     summary_output.parent.mkdir(parents=True, exist_ok=True)
     fold_results.to_csv(fold_output, index=False)
     summary.to_csv(summary_output, index=False)
+    if args.prediction_output:
+        prediction_output = Path(args.prediction_output)
+        prediction_output.parent.mkdir(parents=True, exist_ok=True)
+        pd.concat(prediction_rows, ignore_index=True).to_csv(
+            prediction_output,
+            index=False,
+        )
 
     print(f"Input parquet: {input_path}")
     print(f"Rows: {len(df)}")
@@ -277,6 +327,8 @@ def main() -> None:
     print(f"Groups: {groups.nunique()}")
     print(f"Fold output: {fold_output}")
     print(f"Summary output: {summary_output}")
+    if args.prediction_output:
+        print(f"Prediction output: {args.prediction_output}")
     print()
     print("Summary mean +/- sd:")
     printable = summary.copy()
