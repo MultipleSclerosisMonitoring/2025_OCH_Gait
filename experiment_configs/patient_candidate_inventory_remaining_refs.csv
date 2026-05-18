@@ -1,0 +1,3 @@
+Reference,datefrom,dateuntil,mov_type,Duration  (mins),duration_s,intervals_not_walking,intervals_walking,duration_s_not_walking,duration_s_walking,has_walking,has_not_walking,has_both_labels,already_in_training,candidate_kind,priority
+05447093A-111,2024-05-09 12:20:19.000,2024-05-09 12:20:31,not_walking,0.2,12.0,1.0,0.0,12.0,0.0,False,True,False,False,new_patient_single_label,2
+05447093A-112,2024-05-09 12:21:11.000,2024-05-09 12:21:24,not_walking,0.216667,13.0,1.0,0.0,13.0,0.0,False,True,False,False,new_patient_single_label,2
