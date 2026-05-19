@@ -45,6 +45,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="Reutiliza parquets ya generados para continuar un pipeline interrumpido.",
     )
     p.add_argument(
+        "--direct-extraction",
+        action="store_true",
+        help=(
+            "Usa el extractor directo antiguo. Por defecto se usa extraccion "
+            "por chunks para reducir memoria en rangos largos."
+        ),
+    )
+    p.add_argument(
+        "--chunk-minutes",
+        type=float,
+        default=10.0,
+        help="Duracion central de cada chunk de extraccion.",
+    )
+    p.add_argument(
+        "--chunk-overlap-seconds",
+        type=float,
+        default=5.0,
+        help="Solape consultado a cada lado del chunk.",
+    )
+    p.add_argument(
         "--retries",
         type=int,
         default=3,
@@ -117,8 +137,8 @@ def main() -> None:
             if args.resume_existing and spectrogram_path.exists():
                 print(f">>> Reusing existing spectrogram parquet: {spectrogram_path}")
             else:
-                run_cmd(
-                    [
+                if args.direct_extraction:
+                    extraction_cmd = [
                         python_exe,
                         "extract_influx_hdf5.py",
                         "--mode",
@@ -133,7 +153,28 @@ def main() -> None:
                         ref,
                         "-o",
                         str(spectrogram_path),
-                    ],
+                    ]
+                else:
+                    extraction_cmd = [
+                        python_exe,
+                        "gait_analysis/run_chunked_spectrogram_extraction.py",
+                        "--config",
+                        str(config_path),
+                        "-f",
+                        from_time,
+                        "-u",
+                        until_time,
+                        "-q",
+                        ref,
+                        "--chunk-minutes",
+                        str(args.chunk_minutes),
+                        "--overlap-seconds",
+                        str(args.chunk_overlap_seconds),
+                        "-o",
+                        str(spectrogram_path),
+                    ]
+                run_cmd(
+                    extraction_cmd,
                     retries=args.retries,
                     retry_sleep_seconds=args.retry_sleep_seconds,
                 )
