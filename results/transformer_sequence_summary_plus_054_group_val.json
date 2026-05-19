@@ -1,0 +1,84 @@
+{
+  "input": "salidas_test/auto_extracts/transformer_sequence_dataset_len9_plus_054.npz",
+  "evaluation": "leave_one_temporal_group_out",
+  "rows": 3172,
+  "sequence_shape": [
+    3172,
+    9,
+    72
+  ],
+  "groups": 24,
+  "embargo_seconds": 10.0,
+  "embargo_removed_rows_total": 22,
+  "class_counts": {
+    "not_walking": 1551,
+    "walking": 1621
+  },
+  "config": {
+    "epochs": 80,
+    "batch_size": 64,
+    "learning_rate": 0.001,
+    "d_model": 32,
+    "nhead": 4,
+    "num_layers": 1,
+    "dim_feedforward": 64,
+    "dropout": 0.15,
+    "patience": 12,
+    "seed": 42,
+    "class_weight_mode": "balanced",
+    "pooling": "center",
+    "validation_mode": "group",
+    "label_smoothing": 0.0,
+    "weight_decay": 0.001,
+    "embargo_seconds": 10.0
+  },
+  "out_of_fold_metrics": {
+    "accuracy": 0.6932534678436317,
+    "precision_walking": 0.6727078891257996,
+    "recall_walking": 0.7785317705120296,
+    "f1_walking": 0.7217615098655991
+  },
+  "confusion_matrix": {
+    "labels": [
+      "not_walking",
+      "walking"
+    ],
+    "matrix": [
+      [
+        937,
+        614
+      ],
+      [
+        359,
+        1262
+      ]
+    ]
+  },
+  "classification_report": {
+    "not_walking": {
+      "precision": 0.7229938271604939,
+      "recall": 0.6041263700838169,
+      "f1-score": 0.6582367404285212,
+      "support": 1551.0
+    },
+    "walking": {
+      "precision": 0.6727078891257996,
+      "recall": 0.7785317705120296,
+      "f1-score": 0.7217615098655991,
+      "support": 1621.0
+    },
+    "accuracy": 0.6932534678436317,
+    "macro avg": {
+      "precision": 0.6978508581431467,
+      "recall": 0.6913290702979232,
+      "f1-score": 0.6899991251470601,
+      "support": 3172.0
+    },
+    "weighted avg": {
+      "precision": 0.6972960006932053,
+      "recall": 0.6932534678436317,
+      "f1-score": 0.6907000604970909,
+      "support": 3172.0
+    }
+  }
+}
