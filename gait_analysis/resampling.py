@@ -8,6 +8,13 @@ import pandas as pd
 class Resampler:
     """Resample time-indexed signals to a uniform sampling frequency."""
 
+    OBSERVED_PREFIX = "observed_"
+
+    @classmethod
+    def observed_column(cls, signal: str) -> str:
+        """Return the column name used to mark real observed samples."""
+        return f"{cls.OBSERVED_PREFIX}{signal}"
+
     @staticmethod
     def resample_dataframe(
         df: pd.DataFrame,
@@ -33,7 +40,8 @@ class Resampler:
         if "_time" not in df.columns:
             raise ValueError("El DataFrame no contiene la columna '_time'.")
 
-        use_cols = ["_time"] + [s for s in signals if s in df.columns]
+        existing_signals = [s for s in signals if s in df.columns]
+        use_cols = ["_time"] + existing_signals
         out = df[use_cols].copy()
         out = out.set_index("_time").sort_index()
 
@@ -41,17 +49,42 @@ class Resampler:
         rule = f"{freq_ms}ms"
 
         out = out.resample(rule).mean()
+        observed = out[existing_signals].notna()
+        for signal in existing_signals:
+            out[Resampler.observed_column(signal)] = observed[signal].astype(float)
+
         if max_interpolate_gap_s is None or max_interpolate_gap_s <= 0:
-            out = out.interpolate(method="time").ffill().bfill()
+            out[existing_signals] = (
+                out[existing_signals].interpolate(method="time").ffill().bfill()
+            )
             return out
 
         max_gap_samples = max(1, int(round(max_interpolate_gap_s * fs_hz)))
-        out = out.interpolate(
+        out[existing_signals] = out[existing_signals].interpolate(
             method="time",
             limit=max_gap_samples,
             limit_area="inside",
         )
         return out
+
+    @classmethod
+    def window_sample_completeness(cls, df: pd.DataFrame, signals: List[str]) -> float:
+        """Return real-sample density for a candidate window.
+
+        Prefer observed-sample masks created before interpolation. If a caller
+        passes legacy data without masks, fall back to non-null signal density.
+        """
+        observed_cols = [
+            cls.observed_column(s)
+            for s in signals
+            if cls.observed_column(s) in df.columns
+        ]
+        if observed_cols:
+            return float(df[observed_cols].mean().mean())
+        existing_signals = [s for s in signals if s in df.columns]
+        if not existing_signals:
+            return 0.0
+        return float(df[existing_signals].notna().mean().mean())
 
     @staticmethod
     def fill_short_window_gaps(

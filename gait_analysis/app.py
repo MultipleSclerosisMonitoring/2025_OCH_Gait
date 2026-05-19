@@ -384,13 +384,16 @@ class ExtractApp:
                     valid_for_both = False
                     break
 
-                # Reject windows with excessive missing data after bounded interpolation.
+                # Reject windows with insufficient real sensor samples.
                 expected_samples = int(round(spec_cfg.window_s * spec_cfg.resample_hz)) + 1
                 if len(window_df) < expected_samples:
                     valid_for_both = False
                     break
 
-                completeness = float(window_df[spec_cfg.signals].notna().mean().mean())
+                completeness = Resampler.window_sample_completeness(
+                    window_df,
+                    spec_cfg.signals,
+                )
                 if completeness < spec_cfg.min_window_completeness:
                     valid_for_both = False
                     break

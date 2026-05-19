@@ -285,7 +285,10 @@ def extract_interval_features(
             if window_df.empty or len(window_df) < expected_samples:
                 valid = False
                 break
-            completeness = float(window_df[spec_cfg.signals].notna().mean().mean())
+            completeness = Resampler.window_sample_completeness(
+                window_df,
+                spec_cfg.signals,
+            )
             if completeness < spec_cfg.min_window_completeness:
                 valid = False
                 break
