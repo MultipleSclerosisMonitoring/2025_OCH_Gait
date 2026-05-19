@@ -157,6 +157,39 @@ class ExtractApp:
         step_ms = int(round(1000.0 / resample_hz))
         return pd.date_range(start=start_ts, end=stop_ts, freq=f"{step_ms}ms", tz="UTC")
 
+    def _generate_anchored_centers(
+        self,
+        *,
+        anchor: pd.Timestamp,
+        start_center: pd.Timestamp,
+        stop_center: pd.Timestamp,
+        core_start: pd.Timestamp,
+        core_stop: pd.Timestamp,
+        delta_t_s: float,
+    ) -> List[pd.Timestamp]:
+        """Generate centers aligned to a fixed global anchor."""
+        step = pd.Timedelta(seconds=delta_t_s)
+        lower = max(start_center, core_start)
+        upper = min(stop_center, core_stop - pd.Timedelta(microseconds=1))
+        if upper < lower:
+            return []
+
+        if anchor < lower:
+            steps = int(((lower - anchor) / step))
+            center = anchor + steps * step
+            while center < lower:
+                center += step
+        else:
+            center = anchor
+            while center - step >= lower:
+                center -= step
+
+        centers = []
+        while center <= upper:
+            centers.append(center)
+            center += step
+        return centers
+
     def run_spectrogram(self) -> None:
         """Run sliding-window spectral processing and save output.
 
@@ -303,12 +336,31 @@ class ExtractApp:
             foot_rs[foot] = df_rs
 
         # 6. Generate centers only inside full-window common interval
-        centers_local = TimeProcessor.generate_window_centers(
-            start_dt=start_center.to_pydatetime(),
-            stop_dt=stop_center.to_pydatetime(),
-            window_s=spec_cfg.window_s,
-            delta_t_s=spec_cfg.delta_t_s,
-        )
+        if self._args.center_anchor_time:
+            core_from = self._args.core_from_time or self._args.from_time
+            core_until = self._args.core_until or self._args.until
+            core_start_ts = pd.Timestamp(core_from, tz="UTC")
+            core_stop_ts = pd.Timestamp(core_until, tz="UTC")
+            anchor_ts = pd.Timestamp(self._args.center_anchor_time)
+            if anchor_ts.tzinfo is None:
+                anchor_ts = anchor_ts.tz_localize("UTC")
+            else:
+                anchor_ts = anchor_ts.tz_convert("UTC")
+            centers_local = self._generate_anchored_centers(
+                anchor=anchor_ts,
+                start_center=start_center,
+                stop_center=stop_center,
+                core_start=core_start_ts,
+                core_stop=core_stop_ts,
+                delta_t_s=spec_cfg.delta_t_s,
+            )
+        else:
+            centers_local = TimeProcessor.generate_window_centers(
+                start_dt=start_center.to_pydatetime(),
+                stop_dt=stop_center.to_pydatetime(),
+                window_s=spec_cfg.window_s,
+                delta_t_s=spec_cfg.delta_t_s,
+            )
 
         if self._args.verbose:
             print("Inicio común real:", start_common)

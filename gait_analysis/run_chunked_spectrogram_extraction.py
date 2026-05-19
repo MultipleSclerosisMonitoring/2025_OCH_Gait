@@ -111,6 +111,7 @@ def run_one_chunk(
     config: str,
     chunk: dict[str, datetime],
     output: Path,
+    center_anchor_time: pd.Timestamp | None = None,
 ) -> None:
     """Run the existing extractor for one query interval."""
     cmd = [
@@ -129,6 +130,17 @@ def run_one_chunk(
         "-o",
         str(output),
     ]
+    if center_anchor_time is not None:
+        cmd.extend(
+            [
+                "--core-from-time",
+                format_dt(chunk["core_start"]),
+                "--core-until",
+                format_dt(chunk["core_stop"]),
+                "--center-anchor-time",
+                center_anchor_time.isoformat(),
+            ]
+        )
     print(">>>", " ".join(cmd))
     subprocess.run(cmd, check=True)
 
@@ -196,6 +208,7 @@ def main() -> None:
 
     writer: pq.ParquetWriter | None = None
     total_rows = 0
+    center_anchor_time: pd.Timestamp | None = None
     try:
         for idx, chunk in enumerate(chunks, start=1):
             chunk_path = temp_root / f"chunk_{idx:04d}.parquet"
@@ -208,12 +221,16 @@ def main() -> None:
                 config=args.config,
                 chunk=chunk,
                 output=chunk_path,
+                center_anchor_time=center_anchor_time,
             )
             core_rows = filter_core_rows(
                 chunk_path,
                 core_start=chunk["core_start"],
                 core_stop=chunk["core_stop"],
             )
+            if center_anchor_time is None and not core_rows.empty:
+                center_anchor_time = core_rows["time_center"].min()
+                print(f"Center anchor: {center_anchor_time}")
             if not core_rows.empty:
                 writer = append_chunk(
                     core_rows,

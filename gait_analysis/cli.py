@@ -76,6 +76,21 @@ class CLI:
             default=0,
             help="Aumenta el nivel de detalle (-v, -vv)",
         )
+        p.add_argument(
+            "--core-from-time",
+            default=None,
+            help=argparse.SUPPRESS,
+        )
+        p.add_argument(
+            "--core-until",
+            default=None,
+            help=argparse.SUPPRESS,
+        )
+        p.add_argument(
+            "--center-anchor-time",
+            default=None,
+            help=argparse.SUPPRESS,
+        )
 
         ns = p.parse_args(argv)
 
@@ -88,4 +103,7 @@ class CLI:
             config=ns.config,
             mode=ns.mode,
             verbose=ns.verbose,
+            core_from_time=ns.core_from_time,
+            core_until=ns.core_until,
+            center_anchor_time=ns.center_anchor_time,
         )

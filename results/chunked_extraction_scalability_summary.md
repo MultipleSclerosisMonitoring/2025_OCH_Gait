@@ -47,7 +47,40 @@ Esta mejora no cambia las features ni las metricas del modelo. Mejora la
 robustez operativa para inferencia o extraccion sobre rangos largos. El pipeline
 antiguo sigue disponible para segmentos cortos y comparabilidad historica.
 
-El siguiente paso, si se quiere cerrar completamente esta limitacion, seria
-usar este extractor por chunks como backend de la inferencia de secuencias largas
-y añadir una prueba de equivalencia contra la extraccion no chunked en un tramo
-corto con Influx disponible.
+## Validacion con Influx
+
+Se comparo la extraccion normal contra la extraccion por chunks en un tramo
+corto real:
+
+- referencia: `47046344M-104`
+- rango: `2024-10-15 07:28:58` a `2024-10-15 07:31:52`
+- chunked: chunks de 1 minuto y solape de 5 segundos.
+
+Resultados:
+
+| Comparacion | Resultado |
+|---|---:|
+| Filas extraccion normal | 2064 |
+| Filas chunked | 2076 |
+| Filas comunes por `reference/foot/signal/time_center` | 2064 |
+| Claves presentes en normal y ausentes en chunked | 0 |
+| Claves extra en chunked | 12 |
+| Centros temporales extra | 1 |
+| Maxima diferencia absoluta en potencias comunes | 0.0 |
+
+Las 2064 filas comunes son exactamente identicas. La extraccion por chunks
+genera un centro adicional al final (`2024-10-15 07:31:51.010000+00:00`) por la
+disponibilidad de borde del ultimo chunk. Esto no afecta a la equivalencia de
+las ventanas compartidas y puede filtrarse si se requiere reproducir
+estrictamente el comportamiento historico.
+
+Durante la validacion se detecto que los chunks posteriores podian desplazar los
+centros 10 ms si cada chunk generaba su propia rejilla desde el primer timestamp
+real disponible. Se corrigio añadiendo parametros internos de anclaje:
+
+- `--center-anchor-time`
+- `--core-from-time`
+- `--core-until`
+
+El orquestador chunked usa el primer centro del primer chunk como anchor global
+y fuerza a los chunks siguientes a usar esa misma secuencia de centros.
