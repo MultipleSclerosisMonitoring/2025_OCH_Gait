@@ -1,0 +1,4 @@
+model,fp_rows
+xgboost,530
+catboost,520
+random_forest,450
