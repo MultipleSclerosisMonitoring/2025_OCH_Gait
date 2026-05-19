@@ -11,7 +11,10 @@ import pandas as pd
 
 
 ID_COLS = ["reference", "time_center", "mov_type", "target"]
-FOOT_RE = re.compile(r"^(?P<kind>spec|temp)_(?P<foot>Right|Left)_(?P<rest>.+)$")
+FOOT_PATTERNS = [
+    re.compile(r"^(?P<kind>spec|temp)_(?P<foot>Right|Left)_(?P<rest>.+)$"),
+    re.compile(r"^(?P<foot>Right|Left)_(?P<rest>.+)$"),
+]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -46,11 +49,19 @@ def split_foot_columns(columns: list[str]) -> dict[str, dict[str, str]]:
     """Return mapping foot -> output feature -> source column."""
     mapping: dict[str, dict[str, str]] = {"Right": {}, "Left": {}}
     for column in columns:
-        match = FOOT_RE.match(column)
+        match = next(
+            (pattern.match(column) for pattern in FOOT_PATTERNS if pattern.match(column)),
+            None,
+        )
         if not match:
             continue
         foot = match.group("foot")
-        feature = f"{match.group('kind')}_{match.group('rest')}"
+        kind = match.groupdict().get("kind")
+        feature = (
+            f"{kind}_{match.group('rest')}"
+            if kind
+            else match.group("rest")
+        )
         mapping[foot][feature] = column
     return mapping
 

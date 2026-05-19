@@ -52,6 +52,23 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Parquet de salida con una fila por ventana.",
     )
+    p.add_argument(
+        "--foot-mode",
+        choices=["paired", "unilateral"],
+        default="paired",
+        help=(
+            "paired exige ventanas validas simultaneas en ambos pies; unilateral "
+            "genera una fila independiente por pie disponible."
+        ),
+    )
+    p.add_argument(
+        "--fallback-label-column",
+        default=None,
+        help=(
+            "Columna opcional del CSV de entrada usada como etiqueta cuando el "
+            "centro de ventana no aparece en el Excel de ground truth."
+        ),
+    )
     return p
 
 
@@ -188,6 +205,98 @@ def label_center(
     return "NO_LABEL"
 
 
+def extract_unilateral_features(
+    *,
+    foot_rs: dict[str, pd.DataFrame],
+    foot_min: dict[str, pd.Timestamp],
+    foot_max: dict[str, pd.Timestamp],
+    gt: pd.DataFrame,
+    reference: str,
+    requested_start_ts: pd.Timestamp,
+    requested_stop_ts: pd.Timestamp,
+    spec_cfg,
+    fallback_mov_type: str | None = None,
+) -> list[dict[str, object]]:
+    """Extract independent per-foot temporal features without paired alignment."""
+    half_window = timedelta(seconds=spec_cfg.window_s / 2.0)
+    expected_samples = int(round(spec_cfg.window_s * spec_cfg.resample_hz)) + 1
+    feature_signals = [*spec_cfg.signals]
+    if {"Ax", "Ay", "Az"}.issubset(set(spec_cfg.signals)):
+        feature_signals.append("A_mag")
+    if {"Gx", "Gy", "Gz"}.issubset(set(spec_cfg.signals)):
+        feature_signals.append("G_mag")
+
+    rows = []
+    for foot, df_rs in foot_rs.items():
+        start_common = max(requested_start_ts, foot_min[foot])
+        stop_common = min(requested_stop_ts, foot_max[foot])
+        if stop_common <= start_common:
+            continue
+
+        start_center = start_common + half_window
+        stop_center = stop_common - half_window
+        if stop_center <= start_center:
+            continue
+
+        foot_index = build_common_time_index(
+            start_ts=start_common,
+            stop_ts=stop_common,
+            resample_hz=spec_cfg.resample_hz,
+        )
+        foot_frame = df_rs.reindex(foot_index)
+        centers_local = TimeProcessor.generate_window_centers(
+            start_dt=start_center.to_pydatetime(),
+            stop_dt=stop_center.to_pydatetime(),
+            window_s=spec_cfg.window_s,
+            delta_t_s=spec_cfg.delta_t_s,
+        )
+
+        for center_local in centers_local:
+            center_ts = pd.Timestamp(center_local)
+            start_ts = center_ts - half_window
+            stop_ts = center_ts + half_window
+            window_df = foot_frame.loc[start_ts:stop_ts]
+            if window_df.empty or len(window_df) < expected_samples:
+                continue
+
+            completeness = Resampler.window_sample_completeness(
+                window_df,
+                spec_cfg.signals,
+            )
+            if completeness < spec_cfg.min_window_completeness:
+                continue
+
+            window_df = Resampler.fill_short_window_gaps(
+                window_df.copy(),
+                spec_cfg.resample_hz,
+                spec_cfg.signals,
+                spec_cfg.max_interpolate_gap_s,
+            )
+            window_df = add_magnitude_columns(window_df, spec_cfg.signals)
+            if window_df[feature_signals].isna().any().any():
+                continue
+
+            mov_type = label_center(gt, reference, center_ts)
+            if mov_type not in TARGET_MAP and fallback_mov_type in TARGET_MAP:
+                mov_type = str(fallback_mov_type)
+            if mov_type not in TARGET_MAP:
+                continue
+
+            row: dict[str, object] = {
+                "reference": reference,
+                "time_center": center_ts,
+                "foot": foot,
+                "mov_type": mov_type,
+                "target": TARGET_MAP[mov_type],
+                "sample_completeness": float(completeness),
+            }
+            for signal in feature_signals:
+                row.update(signal_features(window_df[signal].to_numpy(), signal))
+            rows.append(row)
+
+    return rows
+
+
 def extract_interval_features(
     *,
     influx: InfluxService,
@@ -196,6 +305,8 @@ def extract_interval_features(
     reference: str,
     from_time: str,
     until_time: str,
+    foot_mode: str = "paired",
+    fallback_mov_type: str | None = None,
 ) -> list[dict[str, object]]:
     """Extract temporal features for all valid centers in one interval."""
     spec_cfg = cfg.spectrogram
@@ -214,8 +325,12 @@ def extract_interval_features(
             until_time=until_time,
         )
         if df.empty:
-            return []
+            if foot_mode == "paired":
+                return []
+            continue
         foot_data[foot] = df
+    if not foot_data:
+        return []
 
     foot_rs = {}
     foot_min = {}
@@ -228,16 +343,33 @@ def extract_interval_features(
             max_interpolate_gap_s=spec_cfg.max_interpolate_gap_s,
         )
         if df_rs.empty:
-            return []
+            if foot_mode == "paired":
+                return []
+            continue
         df_rs = add_magnitude_columns(df_rs, spec_cfg.signals)
         foot_rs[foot] = df_rs
         foot_min[foot] = df_rs.index.min()
         foot_max[foot] = df_rs.index.max()
+    if not foot_rs:
+        return []
 
     requested_start_ts = pd.Timestamp(
         requested_start_local.replace(tzinfo=ZoneInfo("UTC"))
     )
     requested_stop_ts = pd.Timestamp(requested_stop_local.replace(tzinfo=ZoneInfo("UTC")))
+    if foot_mode == "unilateral":
+        return extract_unilateral_features(
+            foot_rs=foot_rs,
+            foot_min=foot_min,
+            foot_max=foot_max,
+            gt=gt,
+            reference=reference,
+            requested_start_ts=requested_start_ts,
+            requested_stop_ts=requested_stop_ts,
+            spec_cfg=spec_cfg,
+            fallback_mov_type=fallback_mov_type,
+        )
+
     start_common = max(requested_start_ts, max(foot_min.values()))
     stop_common = min(requested_stop_ts, min(foot_max.values()))
     if stop_common <= start_common:
@@ -309,6 +441,8 @@ def extract_interval_features(
             continue
 
         mov_type = label_center(gt, reference, center_ts)
+        if mov_type not in TARGET_MAP and fallback_mov_type in TARGET_MAP:
+            mov_type = str(fallback_mov_type)
         if mov_type not in TARGET_MAP:
             continue
 
@@ -365,6 +499,14 @@ def main() -> None:
             reference = str(interval["Reference"])
             from_time = str(interval["from_time"])
             until_time = str(interval["until_time"])
+            fallback_mov_type = None
+            if args.fallback_label_column:
+                if args.fallback_label_column not in interval.index:
+                    raise ValueError(
+                        "No existe la columna de etiqueta de respaldo: "
+                        f"{args.fallback_label_column}"
+                    )
+                fallback_mov_type = str(interval[args.fallback_label_column]).strip()
             print("Extracting", reference, from_time, until_time)
             interval_rows = extract_interval_features(
                 influx=influx,
@@ -373,6 +515,8 @@ def main() -> None:
                 reference=reference,
                 from_time=from_time,
                 until_time=until_time,
+                foot_mode=args.foot_mode,
+                fallback_mov_type=fallback_mov_type,
             )
             print("Rows:", len(interval_rows))
             rows.extend(interval_rows)
@@ -386,7 +530,9 @@ def main() -> None:
     output.to_parquet(output_path, index=False)
 
     feature_cols = [
-        c for c in output.columns if c not in {"reference", "time_center", "mov_type", "target"}
+        c
+        for c in output.columns
+        if c not in {"reference", "time_center", "mov_type", "target", "foot"}
     ]
     print(f"Output parquet: {output_path}")
     print(f"Rows: {len(output)}")
