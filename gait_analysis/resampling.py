@@ -52,3 +52,34 @@ class Resampler:
             limit_area="inside",
         )
         return out
+
+    @staticmethod
+    def fill_short_window_gaps(
+        df: pd.DataFrame,
+        fs_hz: float,
+        signals: List[str],
+        max_interpolate_gap_s: float | None,
+    ) -> pd.DataFrame:
+        """Fill only short residual gaps inside an already-windowed dataframe.
+
+        Larger gaps remain missing so the caller can reject the window instead
+        of converting sensor dropouts into smooth low-frequency trajectories.
+        """
+        existing_signals = [s for s in signals if s in df.columns]
+        if not existing_signals:
+            return df
+
+        if max_interpolate_gap_s is None or max_interpolate_gap_s <= 0:
+            df[existing_signals] = df[existing_signals].interpolate(
+                method="time",
+                limit_area="inside",
+            )
+            return df
+
+        max_gap_samples = max(1, int(round(max_interpolate_gap_s * fs_hz)))
+        df[existing_signals] = df[existing_signals].interpolate(
+            method="time",
+            limit=max_gap_samples,
+            limit_area="inside",
+        )
+        return df

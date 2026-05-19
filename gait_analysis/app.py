@@ -395,10 +395,11 @@ class ExtractApp:
                     valid_for_both = False
                     break
 
-                window_df = window_df.copy()
-                window_df[spec_cfg.signals] = (
-                    window_df[spec_cfg.signals]
-                    .interpolate(method="time", limit_direction="both")
+                window_df = Resampler.fill_short_window_gaps(
+                    window_df.copy(),
+                    spec_cfg.resample_hz,
+                    spec_cfg.signals,
+                    spec_cfg.max_interpolate_gap_s,
                 )
                 if window_df[spec_cfg.signals].isna().any().any():
                     valid_for_both = False
