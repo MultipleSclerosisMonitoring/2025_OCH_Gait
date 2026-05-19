@@ -74,6 +74,39 @@ def build_parser() -> argparse.ArgumentParser:
         default="results/final_model_evaluation.json",
         help="JSON con resumen agregado de evaluacion",
     )
+    p.add_argument(
+        "--class-weight",
+        choices=["balanced", "none"],
+        default="balanced",
+        help="Ponderacion de clases para el Random Forest.",
+    )
+    p.add_argument(
+        "--max-depth",
+        type=int,
+        default=5,
+        help="Profundidad maxima de cada arbol.",
+    )
+    p.add_argument(
+        "--min-samples-leaf",
+        type=int,
+        default=10,
+        help="Minimo de muestras por hoja.",
+    )
+    p.add_argument(
+        "--not-walking-weight",
+        type=float,
+        default=None,
+        help=(
+            "Peso explicito para la clase not_walking. Si se indica, reemplaza "
+            "--class-weight."
+        ),
+    )
+    p.add_argument(
+        "--walking-weight",
+        type=float,
+        default=1.0,
+        help="Peso explicito para walking cuando se usa --not-walking-weight.",
+    )
     return p
 
 
@@ -118,7 +151,17 @@ def main() -> None:
     fold_rows = []
     prediction_frames = []
     logo = LeaveOneGroupOut()
-    base_model = build_model()
+    base_model = build_model(
+        class_weight=args.class_weight,
+        max_depth=args.max_depth,
+        min_samples_leaf=args.min_samples_leaf,
+        explicit_class_weight={
+            0: args.not_walking_weight,
+            1: args.walking_weight,
+        }
+        if args.not_walking_weight is not None
+        else None,
+    )
 
     for fold_idx, (train_idx, test_idx) in enumerate(logo.split(X, y, groups), start=1):
         estimator = clone(base_model)
