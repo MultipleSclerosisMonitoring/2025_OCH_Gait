@@ -23,6 +23,9 @@ spectrogram:
   fmax_hz: 5.0
   window_type: hann
   power_scale: db
+  detrend: linear
+  max_interpolate_gap_s: 0.25
+  min_window_completeness: 0.95
   signals:
   - Ax
   - Ay
