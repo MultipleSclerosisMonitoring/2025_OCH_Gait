@@ -1,0 +1,7 @@
+change,rows
+walking_to_walking,1664
+not_walking_to_not_walking,1585
+not_walking_to_NO_LABEL,20
+walking_to_NO_LABEL,19
+not_walking_to_walking,5
+walking_to_not_walking,5
