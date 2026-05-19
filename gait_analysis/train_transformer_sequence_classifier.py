@@ -44,6 +44,7 @@ class TrainConfig:
     validation_mode: str
     label_smoothing: float
     weight_decay: float
+    embargo_seconds: float
 
 
 class SequenceTransformerClassifier(nn.Module):
@@ -160,6 +161,15 @@ def build_parser() -> argparse.ArgumentParser:
         default="none",
         help="Criterio de early stopping: perdida de train o grupo interno de validacion",
     )
+    p.add_argument(
+        "--embargo-seconds",
+        type=float,
+        default=10.0,
+        help=(
+            "Margen temporal excluido alrededor del fold de test para evitar "
+            "sangrado entre secuencias solapadas del mismo paciente."
+        ),
+    )
     return p
 
 
@@ -183,7 +193,46 @@ def load_sequence_dataset(path: Path) -> tuple[np.ndarray, np.ndarray, pd.DataFr
             "center_time": data["center_time"].astype(str),
         }
     )
+    if "sequence_start_time" in data.files and "sequence_end_time" in data.files:
+        metadata["sequence_start_time"] = data["sequence_start_time"].astype(str)
+        metadata["sequence_end_time"] = data["sequence_end_time"].astype(str)
+    else:
+        metadata["sequence_start_time"] = metadata["center_time"]
+        metadata["sequence_end_time"] = metadata["center_time"]
+    for col in ["center_time", "sequence_start_time", "sequence_end_time"]:
+        metadata[col] = pd.to_datetime(metadata[col], utc=True, format="mixed")
     return X, y, metadata
+
+
+def apply_temporal_embargo(
+    train_idx: np.ndarray,
+    test_idx: np.ndarray,
+    metadata: pd.DataFrame,
+    embargo_seconds: float,
+) -> tuple[np.ndarray, int]:
+    """Drop train sequences too close to test sequences from the same reference."""
+    if embargo_seconds <= 0:
+        return train_idx, 0
+
+    embargo = pd.Timedelta(seconds=embargo_seconds)
+    train_meta = metadata.iloc[train_idx]
+    test_meta = metadata.iloc[test_idx]
+    keep = np.ones(len(train_idx), dtype=bool)
+
+    for reference, test_ref in test_meta.groupby("reference", sort=False):
+        same_ref = train_meta["reference"].eq(reference).to_numpy()
+        if not same_ref.any():
+            continue
+        expanded_start = test_ref["sequence_start_time"].min() - embargo
+        expanded_end = test_ref["sequence_end_time"].max() + embargo
+        overlaps = (
+            same_ref
+            & train_meta["sequence_end_time"].ge(expanded_start).to_numpy()
+            & train_meta["sequence_start_time"].le(expanded_end).to_numpy()
+        )
+        keep &= ~overlaps
+
+    return train_idx[keep], int((~keep).sum())
 
 
 def normalize_train_test(
@@ -353,6 +402,7 @@ def main() -> None:
         validation_mode=args.validation_mode,
         label_smoothing=args.label_smoothing,
         weight_decay=args.weight_decay,
+        embargo_seconds=args.embargo_seconds,
     )
     set_seed(config.seed)
 
@@ -363,12 +413,23 @@ def main() -> None:
     prediction_frames = []
 
     for fold, (train_idx, test_idx) in enumerate(logo.split(X, y, groups), start=1):
-        fit_idx = train_idx
+        embargoed_train_idx, embargo_removed = apply_temporal_embargo(
+            train_idx,
+            test_idx,
+            metadata,
+            config.embargo_seconds,
+        )
+        if len(embargoed_train_idx) == 0:
+            raise ValueError(
+                f"El embargo temporal ha dejado sin entrenamiento al fold {fold}."
+            )
+
+        fit_idx = embargoed_train_idx
         val_idx = np.asarray([], dtype=int)
         validation_group = ""
         if config.validation_mode == "group":
             fit_idx, val_idx, validation_group = choose_validation_group(
-                train_idx,
+                embargoed_train_idx,
                 groups=groups,
                 fold=fold,
             )
@@ -403,6 +464,8 @@ def main() -> None:
                 "validation_group": validation_group,
                 "train_rows": int(len(fit_idx)),
                 "validation_rows": int(len(val_idx)),
+                "embargo_seconds": float(config.embargo_seconds),
+                "embargo_removed_rows": int(embargo_removed),
                 **score_predictions(y_test, y_pred),
                 "tn": int(tn),
                 "fp": int(fp),
@@ -421,7 +484,8 @@ def main() -> None:
 
         print(
             f"Fold {fold:02d} {group_name}: "
-            f"rows={len(test_idx)} f1={fold_rows[-1]['f1_walking']:.4f}"
+            f"rows={len(test_idx)} embargo_removed={embargo_removed} "
+            f"f1={fold_rows[-1]['f1_walking']:.4f}"
         )
 
     results = pd.DataFrame(fold_rows)
@@ -443,6 +507,8 @@ def main() -> None:
         "rows": int(len(y)),
         "sequence_shape": [int(v) for v in X.shape],
         "groups": int(groups.nunique()),
+        "embargo_seconds": float(config.embargo_seconds),
+        "embargo_removed_rows_total": int(results["embargo_removed_rows"].sum()),
         "class_counts": {
             "not_walking": int((y == 0).sum()),
             "walking": int((y == 1).sum()),

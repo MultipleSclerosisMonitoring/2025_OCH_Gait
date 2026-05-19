@@ -195,6 +195,8 @@ def main() -> None:
         groups=metadata["group"].astype(str).to_numpy(),
         references=metadata["reference"].astype(str).to_numpy(),
         center_time=metadata["center_time"].astype(str).to_numpy(),
+        sequence_start_time=metadata["sequence_start_time"].astype(str).to_numpy(),
+        sequence_end_time=metadata["sequence_end_time"].astype(str).to_numpy(),
     )
     metadata.to_csv(metadata_output, index=False)
 
