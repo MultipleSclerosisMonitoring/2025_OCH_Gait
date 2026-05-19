@@ -60,6 +60,21 @@ def build_parser() -> argparse.ArgumentParser:
         default=10,
         help="Minimo de muestras por hoja.",
     )
+    p.add_argument(
+        "--not-walking-weight",
+        type=float,
+        default=None,
+        help=(
+            "Peso explicito para la clase not_walking. Si se indica, reemplaza "
+            "--class-weight."
+        ),
+    )
+    p.add_argument(
+        "--walking-weight",
+        type=float,
+        default=1.0,
+        help="Peso explicito para walking cuando se usa --not-walking-weight.",
+    )
     return p
 
 
@@ -67,12 +82,20 @@ def build_model(
     class_weight: str,
     max_depth: int,
     min_samples_leaf: int,
+    explicit_class_weight: dict[int, float] | None = None,
 ) -> RandomForestClassifier:
     """Return the selected final model with fixed parameters."""
+    resolved_class_weight = (
+        explicit_class_weight
+        if explicit_class_weight is not None
+        else None
+        if class_weight == "none"
+        else class_weight
+    )
     return RandomForestClassifier(
         n_estimators=300,
         random_state=42,
-        class_weight=None if class_weight == "none" else class_weight,
+        class_weight=resolved_class_weight,
         max_depth=max_depth,
         min_samples_leaf=min_samples_leaf,
         max_features="sqrt",
@@ -111,6 +134,12 @@ def main() -> None:
         class_weight=args.class_weight,
         max_depth=args.max_depth,
         min_samples_leaf=args.min_samples_leaf,
+        explicit_class_weight={
+            0: args.not_walking_weight,
+            1: args.walking_weight,
+        }
+        if args.not_walking_weight is not None
+        else None,
     )
     model.fit(X, y)
 
