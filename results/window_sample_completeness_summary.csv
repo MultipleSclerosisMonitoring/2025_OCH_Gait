@@ -1,0 +1,5 @@
+dataset,rows,completeness_column,mean,std,min,p01,p05,p50,p95,max,rows_below_100,rows_below_99,rows_below_95,rows_below_90
+salidas_test/temporal_features/main_spectral_temporal_window_features_with_new_patients_plus_054.parquet,3372,temp_sample_completeness,1.0,0.0,1.0,1.0,1.0,1.0,1.0,1.0,0,0,0,0
+salidas_test/temporal_features/main_spectral_temporal_window_features_with_new_patients_plus_054_no_transition_5s.parquet,3298,temp_sample_completeness,1.0,0.0,1.0,1.0,1.0,1.0,1.0,1.0,0,0,0,0
+salidas_test/temporal_features/main_spectral_temporal_window_features_with_new_patients_plus_054_no_transition_5s_gt_offset_plus2s.parquet,3259,temp_sample_completeness,1.0,0.0,1.0,1.0,1.0,1.0,1.0,1.0,0,0,0,0
+salidas_test/auto_extracts/main_binary_window_features_with_new_patients_plus_054.parquet,3372,NONE,,,,,,,,,,,,
