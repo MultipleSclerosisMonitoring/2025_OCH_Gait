@@ -44,7 +44,10 @@ def main() -> None:
     output_path = Path(args.output)
 
     df = pd.read_parquet(input_path)
-    gt = pd.read_excel(ground_truth_path)
+    if ground_truth_path.suffix.lower() == ".csv":
+        gt = pd.read_csv(ground_truth_path)
+    else:
+        gt = pd.read_excel(ground_truth_path)
 
     df["time_center"] = pd.to_datetime(df["time_center"], utc=True)
     gt["datefrom"] = pd.to_datetime(gt["datefrom"], utc=True)

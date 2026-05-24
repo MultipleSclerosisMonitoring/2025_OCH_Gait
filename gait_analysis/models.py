@@ -157,3 +157,6 @@ class CliArgs:
     core_from_time: Optional[str] = None
     core_until: Optional[str] = None
     center_anchor_time: Optional[str] = None
+    window_s: Optional[float] = None
+    min_window_completeness: Optional[float] = None
+    max_interpolate_gap_s: Optional[float] = None

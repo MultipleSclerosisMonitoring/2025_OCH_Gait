@@ -1,0 +1,3 @@
+Reference,from_time,until_time,prediction_file,valid_rows,fp_rows,status
+47046344M-104,2024-10-15 07:35:38,2024-10-15 07:37:09,salidas_test/sequence_predictions/47046344M_104_20241015_073538_20241015_073709_predictions.csv,89,59,recovered_from_prediction_outputs
+47046344M-104,2024-10-15 07:41:10,2024-10-15 07:43:24,salidas_test/sequence_predictions/47046344M_104_20241015_074110_20241015_074324_predictions.csv,132,72,recovered_from_prediction_outputs

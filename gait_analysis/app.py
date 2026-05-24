@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import timedelta
 from types import TracebackType
 from typing import Dict, List, Optional, Type
@@ -62,9 +63,24 @@ class ExtractApp:
         """
         return self._config.default_tz or self._args.from_tz
 
+    def _effective_spectrogram_config(self):
+        """Return spectrogram config with optional CLI overrides applied."""
+        spec_cfg = self._config.spectrogram
+        overrides = {}
+        if self._args.window_s is not None:
+            overrides["window_s"] = self._args.window_s
+        if self._args.min_window_completeness is not None:
+            overrides["min_window_completeness"] = self._args.min_window_completeness
+        if self._args.max_interpolate_gap_s is not None:
+            overrides["max_interpolate_gap_s"] = self._args.max_interpolate_gap_s
+        if overrides:
+            spec_cfg = replace(spec_cfg, **overrides)
+        return spec_cfg
+
     def run_count(self) -> None:
         """Run record counting for each configured foot."""
         tz = self._get_tz()
+        spec_cfg = self._effective_spectrogram_config()
 
         start_iso, start_key = TimeProcessor.to_utc_rfc3339_and_key(self._args.from_time, tz)
         stop_iso, stop_key = TimeProcessor.to_utc_rfc3339_and_key(self._args.until, tz)
@@ -78,9 +94,9 @@ class ExtractApp:
             print("Ruta base HDF5 (sin pie aún):", hdf5_base + "/<Foot>")
             print()
 
-        count_fields = self._config.spectrogram.signals
+        count_fields = spec_cfg.signals
 
-        for foot in self._config.spectrogram.feet:
+        for foot in spec_cfg.feet:
             flux = FluxQueryBuilder.build(
                 bucket=self._config.influx.bucket,
                 start_iso=start_iso,
@@ -116,6 +132,7 @@ class ExtractApp:
             DataFrame with '_time' and selected signal columns.
         """
         tz = self._get_tz()
+        spec_cfg = self._effective_spectrogram_config()
         start_iso, _ = TimeProcessor.to_utc_rfc3339_and_key(self._args.from_time, tz)
         stop_iso, _ = TimeProcessor.to_utc_rfc3339_and_key(self._args.until, tz)
 
@@ -127,7 +144,7 @@ class ExtractApp:
             reference=self._args.reference,
             foot_tag=self._config.foot_tag,
             foot=foot,
-            fields=self._config.spectrogram.signals,
+                fields=spec_cfg.signals,
             pivot=True,
         )
 
@@ -206,11 +223,15 @@ class ExtractApp:
             ValueError: If the output extension is unsupported.
         """
         tz = self._get_tz()
-        spec_cfg = self._config.spectrogram
+        spec_cfg = self._effective_spectrogram_config()
         spectrum_engine = PowerSpectrumEngine(spec_cfg)
         rows_right = 0
         rows_left = 0
         total_rows = 0
+        skipped_empty_window = 0
+        skipped_short_window = 0
+        skipped_low_completeness = 0
+        skipped_remaining_nan = 0
         chunk_size = 5000
         chunk_rows: List[Dict[str, object]] = []
         excel_rows: List[Dict[str, object]] = []
@@ -301,8 +322,12 @@ class ExtractApp:
             foot_max[foot] = df_rs.index.max()
 
         # 3. Convert requested local interval to UTC-like timestamps used internally
-        requested_start_ts = pd.Timestamp(requested_start_local.replace(tzinfo=ZoneInfo("UTC")))
-        requested_stop_ts = pd.Timestamp(requested_stop_local.replace(tzinfo=ZoneInfo("UTC")))
+        requested_start_ts = pd.Timestamp(
+            TimeProcessor.to_utc_datetime(self._args.from_time, tz)
+        )
+        requested_stop_ts = pd.Timestamp(
+            TimeProcessor.to_utc_datetime(self._args.until, tz)
+        )
 
         # 4. Real intersection between both feet and requested interval
         start_common = max(
@@ -339,8 +364,12 @@ class ExtractApp:
         if self._args.center_anchor_time:
             core_from = self._args.core_from_time or self._args.from_time
             core_until = self._args.core_until or self._args.until
-            core_start_ts = pd.Timestamp(core_from, tz="UTC")
-            core_stop_ts = pd.Timestamp(core_until, tz="UTC")
+            core_start_ts = pd.Timestamp(
+                TimeProcessor.to_utc_datetime(core_from, tz)
+            )
+            core_stop_ts = pd.Timestamp(
+                TimeProcessor.to_utc_datetime(core_until, tz)
+            )
             anchor_ts = pd.Timestamp(self._args.center_anchor_time)
             if anchor_ts.tzinfo is None:
                 anchor_ts = anchor_ts.tz_localize("UTC")
@@ -382,12 +411,14 @@ class ExtractApp:
 
                 if window_df.empty:
                     valid_for_both = False
+                    skipped_empty_window += 1
                     break
 
                 # Reject windows with insufficient real sensor samples.
                 expected_samples = int(round(spec_cfg.window_s * spec_cfg.resample_hz)) + 1
                 if len(window_df) < expected_samples:
                     valid_for_both = False
+                    skipped_short_window += 1
                     break
 
                 completeness = Resampler.window_sample_completeness(
@@ -396,6 +427,7 @@ class ExtractApp:
                 )
                 if completeness < spec_cfg.min_window_completeness:
                     valid_for_both = False
+                    skipped_low_completeness += 1
                     break
 
                 window_df = Resampler.fill_short_window_gaps(
@@ -406,6 +438,7 @@ class ExtractApp:
                 )
                 if window_df[spec_cfg.signals].isna().any().any():
                     valid_for_both = False
+                    skipped_remaining_nan += 1
                     break
 
                 window_df.attrs["sample_completeness"] = completeness
@@ -449,6 +482,12 @@ class ExtractApp:
             parquet_writer.close()
 
         if total_rows == 0:
+            if self._args.verbose:
+                print("Ventanas descartadas:")
+                print(f"  vacías: {skipped_empty_window}")
+                print(f"  demasiado cortas: {skipped_short_window}")
+                print(f"  baja completitud: {skipped_low_completeness}")
+                print(f"  NaN residuales: {skipped_remaining_nan}")
             raise ValueError("No se han generado filas para el parquet.")
 
         if output_is_parquet:

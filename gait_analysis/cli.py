@@ -91,6 +91,24 @@ class CLI:
             default=None,
             help=argparse.SUPPRESS,
         )
+        p.add_argument(
+            "--window-s",
+            type=float,
+            default=None,
+            help=argparse.SUPPRESS,
+        )
+        p.add_argument(
+            "--min-window-completeness",
+            type=float,
+            default=None,
+            help=argparse.SUPPRESS,
+        )
+        p.add_argument(
+            "--max-interpolate-gap-s",
+            type=float,
+            default=None,
+            help=argparse.SUPPRESS,
+        )
 
         ns = p.parse_args(argv)
 
@@ -106,4 +124,7 @@ class CLI:
             core_from_time=ns.core_from_time,
             core_until=ns.core_until,
             center_anchor_time=ns.center_anchor_time,
+            window_s=ns.window_s,
+            min_window_completeness=ns.min_window_completeness,
+            max_interpolate_gap_s=ns.max_interpolate_gap_s,
         )

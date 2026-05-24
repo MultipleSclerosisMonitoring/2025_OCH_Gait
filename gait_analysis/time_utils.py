@@ -10,13 +10,11 @@ class TimeProcessor:
 
     @staticmethod
     def to_utc_rfc3339_and_key(dt_str: str, tz_name: str) -> Tuple[str, str]:
-        """Build an RFC3339-like timestamp string preserving the input wall-clock time.
+        """Build a UTC RFC3339 timestamp and a local compact key.
 
-        Important:
-            For this project and dataset, the timestamps passed through CLI are sent to
-            InfluxDB preserving the same clock time written by the user. This method
-            does not perform a real timezone conversion to UTC, even though the output
-            string ends with 'Z'.
+        The CLI input is interpreted in the provided timezone and converted to UTC
+        for InfluxDB queries. The compact key keeps the original local wall-clock
+        time so file names remain stable and human-readable.
 
         Args:
             dt_str: Datetime string, e.g. "2025-07-01 15:59:14" (or with 'T').
@@ -24,15 +22,14 @@ class TimeProcessor:
 
         Returns:
             Tuple (rfc3339_str, local_key) where:
-                - rfc3339_str: Timestamp string in RFC3339-like format preserving the
-                  original wall-clock time.
+                - rfc3339_str: UTC timestamp string in RFC3339 format.
                 - local_key: Compact local string YYYYMMDDTHHMMSS.
         """
-        s = dt_str.strip().replace("T", " ")
-        dt = datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+        local_dt = TimeProcessor.to_local_datetime(dt_str, tz_name)
+        utc_dt = local_dt.astimezone(ZoneInfo("UTC"))
 
-        rfc3339_str = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-        key_str = dt.strftime("%Y%m%dT%H%M%S")
+        rfc3339_str = utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        key_str = local_dt.strftime("%Y%m%dT%H%M%S")
         return rfc3339_str, key_str
 
     @staticmethod
@@ -49,6 +46,21 @@ class TimeProcessor:
         s = dt_str.strip().replace("T", " ")
         dt = datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
         return dt.replace(tzinfo=ZoneInfo(tz_name))
+
+    @staticmethod
+    def to_utc_datetime(dt_str: str, tz_name: str) -> datetime:
+        """Parse a local datetime string and convert it to UTC.
+
+        Args:
+            dt_str: Datetime string in '%Y-%m-%d %H:%M:%S' format.
+            tz_name: IANA timezone name.
+
+        Returns:
+            Timezone-aware datetime in UTC.
+        """
+        return TimeProcessor.to_local_datetime(dt_str, tz_name).astimezone(
+            ZoneInfo("UTC")
+        )
 
     @staticmethod
     def generate_window_centers(

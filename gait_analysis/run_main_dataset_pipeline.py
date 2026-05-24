@@ -40,6 +40,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directorio de trabajo para artefactos intermedios y finales",
     )
     p.add_argument(
+        "--cache-dir",
+        default=None,
+        help=(
+            "Directorio con parquets ya generados que pueden reutilizarse "
+            "antes de volver a extraer desde Influx."
+        ),
+    )
+    p.add_argument(
         "--resume-existing",
         action="store_true",
         help="Reutiliza parquets ya generados para continuar un pipeline interrumpido.",
@@ -105,6 +113,7 @@ def main() -> None:
     ground_truth_path = Path(args.ground_truth)
     config_path = Path(args.config)
     workdir = Path(args.workdir)
+    cache_dir = Path(args.cache_dir) if args.cache_dir else None
 
     workdir.mkdir(parents=True, exist_ok=True)
 
@@ -117,6 +126,14 @@ def main() -> None:
     python_exe = sys.executable
 
     filtered_paths: list[str] = []
+
+    def cached_path(path: Path) -> Path | None:
+        if cache_dir is None:
+            return None
+        candidate = cache_dir / path.name
+        if candidate.exists():
+            return candidate
+        return None
 
     for _, row in valid.iterrows():
         ref = str(row["Reference"])
@@ -131,8 +148,14 @@ def main() -> None:
         labeled_path = workdir / f"{block_id}_window_1s_labeled.parquet"
         filtered_path = workdir / f"{block_id}_window_1s_labeled_filtered.parquet"
 
+        cached_filtered = cached_path(filtered_path)
+
         if args.resume_existing and filtered_path.exists():
             print(f">>> Reusing existing filtered parquet: {filtered_path}")
+        elif cached_filtered is not None:
+            print(f">>> Reusing cached filtered parquet: {cached_filtered}")
+            filtered_paths.append(str(cached_filtered))
+            continue
         else:
             if args.resume_existing and spectrogram_path.exists():
                 print(f">>> Reusing existing spectrogram parquet: {spectrogram_path}")
@@ -194,7 +217,7 @@ def main() -> None:
                 retry_sleep_seconds=args.retry_sleep_seconds,
             )
 
-        filtered_paths.append(str(filtered_path))
+            filtered_paths.append(str(filtered_path))
 
     combined_path = workdir / "main_combined_labeled_dataset.parquet"
     run_cmd(

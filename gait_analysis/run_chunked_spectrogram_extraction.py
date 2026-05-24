@@ -156,8 +156,16 @@ def filter_core_rows(
     if df.empty:
         return df
     df["time_center"] = pd.to_datetime(df["time_center"], utc=True, format="mixed")
-    core_start_ts = pd.Timestamp(core_start, tz="UTC")
-    core_stop_ts = pd.Timestamp(core_stop, tz="UTC")
+    core_start_ts = pd.Timestamp(core_start)
+    if core_start_ts.tzinfo is None:
+        core_start_ts = core_start_ts.tz_localize("UTC")
+    else:
+        core_start_ts = core_start_ts.tz_convert("UTC")
+    core_stop_ts = pd.Timestamp(core_stop)
+    if core_stop_ts.tzinfo is None:
+        core_stop_ts = core_stop_ts.tz_localize("UTC")
+    else:
+        core_stop_ts = core_stop_ts.tz_convert("UTC")
     core = df[df["time_center"].ge(core_start_ts) & df["time_center"].lt(core_stop_ts)]
     return core.copy()
 

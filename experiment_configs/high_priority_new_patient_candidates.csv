@@ -1,0 +1,17 @@
+Reference,datefrom,dateuntil,mov_type,note,priority
+54217882M-109,2025-03-19 12:00,2025-03-20 03:00,unknown,"Approximate coverage reported by user; prioritize exact interval recovery.",1
+77370299R-115,2024-11-04 07:00,2024-11-04 22:30,unknown,"Approximate first block reported by user.",2
+ACL1998-96,2025-07-16 08:00,2025-07-16 14:00,unknown,"Approximate first block reported by user.",3
+AMIR-48,2024-06-26 19:00,2024-06-27 16:00,unknown,"First approximate block reported by user; patient has additional blocks.",4
+AEMDHUG060-70,2026-04-28 12:00,2026-04-28 14:00,unknown,"Approximate first block reported by user.",5
+AGCHUG064-10,2026-05-05 10:00,2026-05-06 14:00,unknown,"Approximate block reported by user.",6
+AMGHUG014-3,2026-05-03 23:00,2026-05-04 21:00,unknown,"Approximate block reported by user.",7
+MGM-202406-79,2025-06-16 00:00,2025-06-16 23:59,unknown,"Date-level coverage reported by user; exact times still needed.",8
+X8439657Z-23,2025-03-21 20:00,2025-03-23 12:30,unknown,"Intermittent coverage reported by user.",9
+JOM250427-105,2025-04-27 08:00,2025-04-27 15:30,unknown,"Approximate block reported by user.",10
+VCLHUG026-16,2026-02-10 07:00,2026-02-11 10:00,unknown,"Approximate block reported by user.",11
+VLGHUG049-29,2026-04-14 11:00,2026-04-14 18:00,unknown,"Approximate block reported by user.",12
+JOM250429-103,2025-04-29 19:00,2025-04-29 20:30,unknown,"Approximate block reported by user.",13
+AAMALMHUG057-66,2024-04-25 20:00,2024-04-25 22:00,unknown,"Approximate block reported by user.",14
+AGCHUG046-10,2025-05-06 13:00,2025-05-06 15:00,unknown,"Approximate block reported by user.",15
+LFP1994-120,2025-08-01 16:30,2025-08-01 16:50,unknown,"Approximate block reported by user.",16

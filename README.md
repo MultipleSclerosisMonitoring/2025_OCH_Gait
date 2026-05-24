@@ -47,11 +47,9 @@ para ambos pies:
 
 ## Tratamiento horario
 
-Las fechas introducidas por CLI se interpretan según la configuración temporal actual del proyecto y se envían a InfluxDB preservando la hora escrita por el usuario en el rango solicitado.
+Las fechas introducidas por CLI se interpretan en la zona horaria configurada para el proyecto y se convierten a UTC antes de consultar InfluxDB.
 
-Este comportamiento es el que mantiene la compatibilidad con el dataset histórico y con la generación actual de espectrogramas usada en el pipeline principal.
-
-Al comparar directamente con Grafana, puede observarse un desfase respecto a la hora local mostrada en la interfaz. La unificación completa del tratamiento horario entre Grafana, ground truth y pipeline queda como una mejora futura del proyecto.
+Al comparar con Grafana hay que tener en cuenta la zona horaria mostrada por la interfaz. Si Grafana está en hora local del navegador, el rango que se introduzca en el pipeline debe convertirse explícitamente a UTC para reproducir la misma ventana de datos.
 
 ## Modos principales de ejecución
 

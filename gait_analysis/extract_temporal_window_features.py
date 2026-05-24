@@ -354,9 +354,11 @@ def extract_interval_features(
         return []
 
     requested_start_ts = pd.Timestamp(
-        requested_start_local.replace(tzinfo=ZoneInfo("UTC"))
+        TimeProcessor.to_utc_datetime(from_time, tz)
     )
-    requested_stop_ts = pd.Timestamp(requested_stop_local.replace(tzinfo=ZoneInfo("UTC")))
+    requested_stop_ts = pd.Timestamp(
+        TimeProcessor.to_utc_datetime(until_time, tz)
+    )
     if foot_mode == "unilateral":
         return extract_unilateral_features(
             foot_rs=foot_rs,
