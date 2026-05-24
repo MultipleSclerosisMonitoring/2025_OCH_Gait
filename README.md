@@ -412,6 +412,28 @@ El barrido inicial muestra que el umbral `0.65` mejora el equilibrio actual fren
 
 El ajuste reduce de forma clara los falsos positivos, aunque todavía mantiene una precision baja. Por tanto, el siguiente refinamiento metodológico debe incorporar suavizado temporal o reglas de persistencia para evitar que ventanas aisladas activen una predicción de marcha.
 
+### Criterio operativo final
+
+Tras ampliar el dataset con más diversidad de pacientes y volver a evaluar la salida temporal, el criterio más defendible para reportar el modelo es mantener como resultado principal un **punto equilibrado** y dejar como alternativa un **modo conservador** si se quiere penalizar más las falsas alarmas.
+
+En la validación leave-one-reference-out con `CatBoost`, el mejor punto equilibrado aparece con `threshold=0.70`:
+
+* accuracy: `0.6937`
+* precision (`walking`): `0.4989`
+* recall (`walking`): `0.3971`
+* F1-score (`walking`): `0.4422`
+* falsos positivos: `688`
+
+Si se prioriza reducir más los falsos positivos, la regla temporal `threshold=0.70` + `min_run_windows=2` baja la tasa de falsas alarmas de `0.1756` a `0.1376`, aunque también reduce el recall y el F1:
+
+* accuracy: `0.7054`
+* precision (`walking`): `0.5276`
+* recall (`walking`): `0.3490`
+* F1-score (`walking`): `0.4201`
+* falsos positivos: `539`
+
+Por eso, en la documentación del proyecto se toma como referencia principal el punto equilibrado y se deja el modo conservador como configuración de explotación cuando el coste de una falsa alarma sea mayor que el de perder alguna ventana de marcha.
+
 También se ha evaluado una regla de persistencia temporal: primero se aplica el umbral sobre `walking_probability` y después solo se aceptan como marcha los bloques con al menos `N` ventanas positivas consecutivas. El barrido se ejecuta con:
 
 ```bash
