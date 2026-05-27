@@ -269,6 +269,33 @@ poetry run python gait_analysis/reproduce_direct_influx_pipeline.py \
 
 Si InfluxDB ya no está disponible, el script admite `--resume-existing` y `--cache-dir` para reutilizar parquets ya generados.
 
+### Componentes del flujo
+
+Si el tutor quiere validar por partes, estos son los pasos y sus scripts:
+
+| Paso | Script | Entrada principal | Salida principal |
+| --- | --- | --- | --- |
+| Extracción directa | `gait_analysis/extract_influx_hdf5.py` | `-f`, `-u`, `-q`, `--config` | parquet de espectrograma |
+| Etiquetado | `gait_analysis/label_spectrogram_with_ground_truth.py` | parquet + ground truth UTC | parquet etiquetado + `_filtered` |
+| Combinación | `gait_analysis/combine_labeled_datasets.py` | varios parquets etiquetados | parquet combinado |
+| Wide | `gait_analysis/build_wide_dataset.py` | parquet combinado long | parquet wide |
+| Limpieza | `gait_analysis/clean_wide_dataset.py` | parquet wide | parquet wide limpio |
+| Dataset binario | `gait_analysis/prepare_ml_dataset.py` | wide limpio | parquet binario final |
+| CV3 clásica | `gait_analysis/run_ml_model_comparison_cv3.py` | parquet binario | CSV de folds y resumen |
+| Modelo final | `gait_analysis/train_final_model.py` | parquet binario | `joblib` + JSON resumen |
+| Evaluación final | `gait_analysis/evaluate_final_model.py` | parquet binario + modelo | CSV de predicciones, importancia y JSON |
+
+Comandos equivalentes por pasos:
+
+```bash
+poetry run python gait_analysis/extract_influx_hdf5.py --mode spectrogram --config experiment_configs/config_window_1s_manual_newpatients.yaml --from-tz Europe/Madrid -f "YYYY-MM-DD HH:MM:SS" -u "YYYY-MM-DD HH:MM:SS" -q "REFERENCE" -o salida.parquet
+poetry run python gait_analysis/label_spectrogram_with_ground_truth.py -i salida.parquet -g experiment_configs/reproducible_direct_influx_ground_truth_utc.csv -o salida_labeled.parquet
+poetry run python gait_analysis/combine_labeled_datasets.py -i file1.parquet file2.parquet -o combined.parquet
+poetry run python gait_analysis/build_wide_dataset.py -i combined.parquet -o combined_wide.parquet
+poetry run python gait_analysis/clean_wide_dataset.py -i combined_wide.parquet -o combined_wide_clean.parquet
+poetry run python gait_analysis/prepare_ml_dataset.py -i combined_wide_clean.parquet -o main_binary_window_features.parquet
+```
+
 ## Baselines iniciales
 
 Se han ejecutado baselines simples sobre el dataset principal en formato `wide` limpio.
