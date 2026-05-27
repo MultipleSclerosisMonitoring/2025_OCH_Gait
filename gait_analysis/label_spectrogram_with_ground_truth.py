@@ -49,9 +49,9 @@ def main() -> None:
     else:
         gt = pd.read_excel(ground_truth_path)
 
-    df["time_center"] = pd.to_datetime(df["time_center"], utc=True)
-    gt["datefrom"] = pd.to_datetime(gt["datefrom"], utc=True)
-    gt["dateuntil"] = pd.to_datetime(gt["dateuntil"], utc=True)
+    df["time_center"] = pd.to_datetime(df["time_center"], utc=True, format="mixed")
+    gt["datefrom"] = pd.to_datetime(gt["datefrom"], utc=True, format="mixed")
+    gt["dateuntil"] = pd.to_datetime(gt["dateuntil"], utc=True, format="mixed")
 
     def label_row(reference: str, time_center: pd.Timestamp) -> str:
         """Return movement label for a spectrogram row time center."""

@@ -1,0 +1,135 @@
+{
+  "input": "salidas_test/auto_extracts/main_binary_window_features_with_manual_newpatients.parquet",
+  "model": "models/final_random_forest_model_with_manual_newpatients.joblib",
+  "rows": 10499,
+  "feature_columns": 72,
+  "groups": 283,
+  "references": [
+    "02548893X-118",
+    "04845288Q-121",
+    "47046344M-104",
+    "ACL1998-96",
+    "AEMDHUG060-70",
+    "AGCHUG064-10"
+  ],
+  "class_counts": {
+    "not_walking": 6374,
+    "walking": 4125
+  },
+  "evaluation": "temporal_block_leave_one_group_out",
+  "weighted_mean_metrics": {
+    "accuracy": 0.5415,
+    "f1_walking": 0.232,
+    "recall_walking": 0.1899
+  },
+  "out_of_fold_metrics": {
+    "accuracy": 0.5415,
+    "f1_walking": 0.4012,
+    "recall_walking": 0.391
+  },
+  "confusion_matrix": {
+    "labels": [
+      "not_walking",
+      "walking"
+    ],
+    "matrix": [
+      [
+        4072,
+        2302
+      ],
+      [
+        2512,
+        1613
+      ]
+    ]
+  },
+  "classification_report": {
+    "not_walking": {
+      "precision": 0.6184690157958688,
+      "recall": 0.6388453090680891,
+      "f1-score": 0.6284920512424756,
+      "support": 6374.0
+    },
+    "walking": {
+      "precision": 0.4120051085568327,
+      "recall": 0.391030303030303,
+      "f1-score": 0.40124378109452735,
+      "support": 4125.0
+    },
+    "accuracy": 0.5414801409658063,
+    "macro avg": {
+      "precision": 0.5152370621763507,
+      "recall": 0.514937806049196,
+      "f1-score": 0.5148679161685015,
+      "support": 10499.0
+    },
+    "weighted avg": {
+      "precision": 0.537350469518983,
+      "recall": 0.5414801409658063,
+      "f1-score": 0.5392074418167887,
+      "support": 10499.0
+    }
+  },
+  "top_features": [
+    {
+      "feature": "Left_Gx_p_001",
+      "importance": 0.09312062768942717
+    },
+    {
+      "feature": "Right_Gx_p_001",
+      "importance": 0.07361567025456374
+    },
+    {
+      "feature": "Left_Gx_p_002",
+      "importance": 0.07224539237691048
+    },
+    {
+      "feature": "Right_Gx_p_002",
+      "importance": 0.06104610511287607
+    },
+    {
+      "feature": "Left_Gx_p_000",
+      "importance": 0.05091544422989184
+    },
+    {
+      "feature": "Right_Gx_p_003",
+      "importance": 0.04749706276591473
+    },
+    {
+      "feature": "Right_Ay_p_001",
+      "importance": 0.04533905549508082
+    },
+    {
+      "feature": "Right_Ax_p_001",
+      "importance": 0.04232697293161125
+    },
+    {
+      "feature": "Left_Gx_p_003",
+      "importance": 0.03729001126840276
+    },
+    {
+      "feature": "Right_Ay_p_002",
+      "importance": 0.034241143233957085
+    },
+    {
+      "feature": "Right_Gx_p_000",
+      "importance": 0.03226439091601537
+    },
+    {
+      "feature": "Right_Ay_p_003",
+      "importance": 0.025572947600644824
+    },
+    {
+      "feature": "Right_Az_p_005",
+      "importance": 0.02527878865698375
+    },
+    {
+      "feature": "Right_Ay_p_004",
+      "importance": 0.021285347722206572
+    },
+    {
+      "feature": "Right_Ay_p_005",
+      "importance": 0.020736846482093185
+    }
+  ]
+}
