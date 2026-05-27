@@ -197,6 +197,7 @@ Estos scripts permiten:
 ## Integración con Grafana
 
 El proyecto soporta un flujo semiautomático para construir ground truth a partir de datos exportados desde Grafana.
+Grafana se usa aquí como interfaz de revisión y exportación de etiquetas, no como origen de la señal cruda del pipeline de extracción.
 
 Flujo actual:
 
@@ -213,6 +214,8 @@ Este flujo permite convertir tablas exportadas desde Grafana al formato interno 
 * `mov_type`
 
 La integración actual es **semiautomática**: Grafana se utiliza como fuente de datos exportables o apoyo visual para etiquetado, pero la construcción final del ground truth todavía requiere una fase intermedia de importación/normalización dentro del proyecto.
+
+Importante: la extracción de señales del pipeline principal no depende de esos CSV/Excel de Grafana. El código consulta InfluxDB directamente mediante Flux (`FluxQueryBuilder` + `InfluxService`) y genera las ventanas espectrales desde ahí. Si un panel de Grafana aplica agregaciones, esas agregaciones afectan solo a la exportación de Grafana, no al extractor del repositorio.
 
 ## Pipeline actual de etiquetado y preparación para ML
 
