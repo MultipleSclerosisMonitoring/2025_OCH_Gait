@@ -239,6 +239,36 @@ El dataset binario preparado conserva los identificadores de ventana, añade `ta
 * `not_walking` => `0`
 * `walking` => `1`
 
+## Flujo reproducible end-to-end
+
+Para asegurar reproducibilidad, el repositorio incluye un orquestador que reconstruye el flujo completo desde un ground truth UTC único:
+
+* `gait_analysis/reproduce_direct_influx_pipeline.py`
+
+Ese script:
+
+1. lee `experiment_configs/reproducible_direct_influx_ground_truth_utc.csv`
+2. extrae los intervalos directamente desde InfluxDB con Flux
+3. etiqueta los espectrogramas con el ground truth
+4. combina y limpia los datasets
+5. genera el parquet binario final
+6. ejecuta la comparación `RF / XGBoost / CatBoost` con `CV=3`
+7. entrena el `Random Forest` final
+8. evalúa el modelo final con validación temporal por bloques
+
+Ejemplo de uso:
+
+```bash
+poetry run python gait_analysis/reproduce_direct_influx_pipeline.py \
+  --ground-truth experiment_configs/reproducible_direct_influx_ground_truth_utc.csv \
+  --config experiment_configs/config_window_1s_manual_newpatients.yaml \
+  --workdir salidas_test/reproducible_direct_influx \
+  --results-dir results \
+  --models-dir models
+```
+
+Si InfluxDB ya no está disponible, el script admite `--resume-existing` y `--cache-dir` para reutilizar parquets ya generados.
+
 ## Baselines iniciales
 
 Se han ejecutado baselines simples sobre el dataset principal en formato `wide` limpio.

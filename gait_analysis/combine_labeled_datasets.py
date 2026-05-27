@@ -39,6 +39,10 @@ def main() -> None:
 
     frames = [pd.read_parquet(path) for path in input_paths]
     df = pd.concat(frames, ignore_index=True)
+    before = len(df)
+    df = df.drop_duplicates()
+    if len(df) != before:
+        print(f"Deduplicated exact rows: {before} -> {len(df)}")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
@@ -59,4 +63,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-    

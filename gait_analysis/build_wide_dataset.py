@@ -38,8 +38,14 @@ def main() -> None:
     df = pd.read_parquet(input_path)
 
     p_cols = [c for c in df.columns if c.startswith("p_")]
+    key_cols = ["reference", "time_center", "mov_type", "foot", "signal"]
+    df = (
+        df.groupby(key_cols, as_index=False)[p_cols]
+        .mean(numeric_only=True)
+        .sort_values(key_cols)
+    )
     wide = (
-        df.set_index(["reference", "time_center", "mov_type", "foot", "signal"])[p_cols]
+        df.set_index(key_cols)[p_cols]
         .unstack(["foot", "signal"])
     )
     wide.columns = [f"{foot}_{signal}_{col}" for col, foot, signal in wide.columns]
@@ -59,4 +65,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-    
