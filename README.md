@@ -244,6 +244,7 @@ El dataset binario preparado conserva los identificadores de ventana, añade `ta
 Para asegurar reproducibilidad, el repositorio incluye un orquestador que reconstruye el flujo completo desde un ground truth UTC único:
 
 * `gait_analysis/reproduce_direct_influx_pipeline.py`
+* entrada directa equivalente para extracción puntual: `extract_influx_hdf5.py` o `poetry run python -m gait_analysis`
 
 Ese script:
 
@@ -268,6 +269,18 @@ poetry run python gait_analysis/reproduce_direct_influx_pipeline.py \
 ```
 
 Si InfluxDB ya no está disponible, el script admite `--resume-existing` y `--cache-dir` para reutilizar parquets ya generados.
+
+Para ejecutar solo la extracción puntual:
+
+```bash
+poetry run python extract_influx_hdf5.py --mode spectrogram --config experiment_configs/config_window_1s_manual_newpatients.yaml --from-tz Europe/Madrid -f "2025-07-16 10:15:00" -u "2025-07-16 11:15:00" -q "ACL1998-96" -o salida.parquet
+```
+
+También puede ejecutarse como módulo:
+
+```bash
+poetry run python -m gait_analysis --mode count --config experiment_configs/config_window_1s_manual_newpatients.yaml -f "2025-07-16 10:15:00" -u "2025-07-16 11:15:00" -q "ACL1998-96"
+```
 
 ### Componentes del flujo
 
