@@ -64,8 +64,9 @@ class CLI:
             help="Ruta al fichero YAML de configuración",
         )
         p.add_argument(
+            "-mode",
             "--mode",
-            choices=["count", "spectrogram"],
+            choices=["count", "spectrogram", "raw"],
             default="count",
             help="Modo de ejecución",
         )
@@ -111,6 +112,9 @@ class CLI:
         )
 
         ns = p.parse_args(argv)
+
+        if ns.mode == "raw":
+            ns.mode = "spectrogram"
 
         return CliArgs(
             from_time=ns.from_time,
