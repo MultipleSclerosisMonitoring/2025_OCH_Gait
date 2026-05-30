@@ -818,6 +818,180 @@ Salida:
 * probabilidad de marcha
 * predicción final
 
+## Tipos de estimación
+
+En este repositorio, "estimación" se refiere a aplicar un modelo ya entrenado o una regla de decisión sobre ventanas temporales para obtener predicciones `walking` / `not_walking`. Hay varios niveles de estimación según el contexto de uso.
+
+| Tipo | Cuándo usarlo | Entrada | Salida | Script |
+| --- | --- | --- | --- | --- |
+| Estimación por ventana con modelo clásico | Para obtener una predicción independiente por cada `time_center`. | referencia/rango o espectrograma ya extraído + modelo `joblib` | CSV con probabilidad y predicción por ventana | `predict_walking_sequence.py` |
+| Evaluación de segmentos configurados | Para evaluar varios segmentos contra ground truth. | CSV de segmentos + ground truth + modelo | predicciones por segmento, métricas por segmento y resumen | `run_sequence_evaluation.py` |
+| Estimación concatenada | Para unir varios segmentos en una secuencia temporal sintética y aplicar persistencia. | predicciones por segmento + CSV de ventanas | CSV de secuencia concatenada + resumen | `build_stitched_sequence_evaluation.py` |
+| Estimación transformer | Para predecir usando contexto temporal de varias ventanas. | referencia/rango o espectrograma + modelo `.pt` | CSV con probabilidad y predicción por centro de secuencia | `predict_transformer_walking_sequence.py` |
+| Evaluación transformer por segmentos | Para evaluar el transformer sobre segmentos configurados. | CSV de segmentos + modelo `.pt` + ground truth | predicciones, métricas por segmento y resumen | `run_transformer_sequence_evaluation.py` |
+| Consenso RF + transformer | Para combinar probabilidades de ambos modelos y aplicar una regla común. | predicciones RF + predicciones transformer | barrido, predicciones de consenso y resumen | `tune_transformer_rf_consensus.py` |
+
+### Estimación por ventana con modelo clásico
+
+Parte de una secuencia raw o de un espectrograma ya calculado. Devuelve una fila por `time_center`.
+
+```bash
+poetry run python gait_analysis/predict_walking_sequence.py \
+  -q "REFERENCE" \
+  -f "YYYY-MM-DD HH:MM:SS" \
+  -u "YYYY-MM-DD HH:MM:SS" \
+  -m "models/final_random_forest_model.joblib" \
+  -o "salidas_test/sequence_predictions/REFERENCE_predictions.csv"
+```
+
+Entrada:
+
+* referencia y rango temporal, o `--spectrogram-input`
+* configuración de espectrograma
+* modelo clásico `joblib`
+
+Salida:
+
+* `reference`
+* `time_center`
+* `walking_probability`
+* `prediction`
+* `prediction_label`
+
+### Evaluación de segmentos configurados
+
+Ejecuta estimación por ventana sobre varios segmentos definidos en un CSV y cruza cada `time_center` con el ground truth.
+
+```bash
+poetry run python gait_analysis/run_sequence_evaluation.py \
+  -i "experiment_configs/sequence_evaluation_windows.csv" \
+  -g "salidas_test/ground_truth_clean.xlsx" \
+  --model "models/final_random_forest_model.joblib" \
+  --prediction-dir "salidas_test/sequence_predictions" \
+  --results-output "results/sequence_evaluation_results.csv" \
+  --predictions-output "results/sequence_evaluation_predictions.csv" \
+  --summary-output "results/sequence_evaluation_summary.csv"
+```
+
+Entrada:
+
+* CSV de segmentos
+* ground truth limpio
+* modelo clásico
+* opcionalmente caché de espectrogramas con `--spectrogram-cache-dir`
+
+Salida:
+
+* predicciones etiquetadas por ventana
+* métricas por segmento
+* resumen agregado
+
+### Estimación concatenada con persistencia
+
+Une predicciones de varios segmentos en una secuencia sintética y aplica una regla temporal de persistencia para evitar activaciones aisladas.
+
+```bash
+poetry run python gait_analysis/build_stitched_sequence_evaluation.py \
+  --predictions "results/sequence_evaluation_predictions.csv" \
+  --windows "experiment_configs/sequence_evaluation_windows.csv" \
+  --scope "same_patient" \
+  --threshold 0.65 \
+  --min-run-windows 2 \
+  --predictions-output "results/stitched_sequence_predictions.csv" \
+  --summary-output "results/stitched_sequence_summary.csv"
+```
+
+Entrada:
+
+* predicciones por segmento
+* CSV de ventanas de evaluación
+* umbral de probabilidad
+* mínimo de ventanas consecutivas positivas
+
+Salida:
+
+* CSV con la secuencia concatenada
+* predicción tras persistencia
+* resumen agregado
+
+### Estimación con transformer
+
+Usa un modelo secuencial entrenado sobre grupos de ventanas consecutivas. La predicción corresponde al centro de cada secuencia.
+
+```bash
+poetry run python gait_analysis/predict_transformer_walking_sequence.py \
+  -q "REFERENCE" \
+  -f "YYYY-MM-DD HH:MM:SS" \
+  -u "YYYY-MM-DD HH:MM:SS" \
+  -m "models/final_transformer_sequence_model_unweighted_nols.pt" \
+  -o "salidas_test/transformer_sequence_predictions/REFERENCE_predictions.csv"
+```
+
+Entrada:
+
+* referencia y rango temporal, o `--spectrogram-input`
+* modelo transformer `.pt`
+* configuración de espectrograma
+
+Salida:
+
+* `time_center`
+* inicio y fin de la secuencia usada
+* probabilidad de marcha
+* predicción final
+
+### Evaluación transformer por segmentos
+
+Ejecuta la estimación transformer sobre los segmentos configurados y evalúa contra ground truth.
+
+```bash
+poetry run python gait_analysis/run_transformer_sequence_evaluation.py \
+  -i "experiment_configs/sequence_evaluation_windows.csv" \
+  -g "salidas_test/ground_truth_clean.xlsx" \
+  --model "models/final_transformer_sequence_model_unweighted_nols.pt" \
+  --prediction-dir "salidas_test/transformer_sequence_predictions" \
+  --results-output "results/transformer_sequence_eval_results.csv" \
+  --predictions-output "results/transformer_sequence_eval_predictions.csv" \
+  --summary-output "results/transformer_sequence_eval_summary.csv"
+```
+
+Entrada:
+
+* CSV de segmentos
+* modelo transformer
+* ground truth limpio
+
+Salida:
+
+* predicciones transformer por ventana/secuencia
+* métricas por segmento
+* resumen agregado
+
+### Consenso entre modelo clásico y transformer
+
+Combina predicciones ya generadas por el modelo clásico y el transformer. Sirve para aplicar una compuerta de acuerdo entre ambos modelos.
+
+```bash
+poetry run python gait_analysis/tune_transformer_rf_consensus.py \
+  --rf-predictions "results/sequence_evaluation_predictions.csv" \
+  --transformer-predictions "results/transformer_sequence_eval_predictions_unweighted_nols.csv" \
+  --sweep-output "results/transformer_rf_consensus_sweep.csv" \
+  --prediction-output "results/transformer_rf_consensus_predictions.csv" \
+  --summary-output "results/transformer_rf_consensus_summary.csv"
+```
+
+Entrada:
+
+* predicciones del modelo clásico
+* predicciones del transformer
+* umbrales y regla de persistencia configurables
+
+Salida:
+
+* barrido de reglas de consenso
+* predicciones alineadas con consenso
+* resumen de la regla seleccionada
+
 ## Scripts por etapa
 
 | Etapa | Script |
