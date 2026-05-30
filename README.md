@@ -1,26 +1,35 @@
 # 2025_OCH_Gait
 
-## Descripción general
+Repositorio para extraer señales IMU de marcha desde InfluxDB, transformarlas en ventanas espectrales, etiquetarlas con ground truth temporal y preparar datasets para modelos de clasificación de marcha/no marcha.
 
-Este proyecto extrae señales de marcha desde InfluxDB y genera representaciones espectrales para su análisis posterior.
+El objetivo del repositorio es cubrir el flujo técnico completo desde la comprobación de una ventana temporal hasta la generación de artefactos listos para entrenamiento, evaluación o inferencia.
 
-Actualmente el pipeline permite:
+## Qué permite hacer
 
-* contar registros por pie
-* generar espectros de potencia a partir de señales IMU
-* exportar resultados en formato `.parquet`, `.xlsx` y `.h5/.hdf5`
-* asignar etiquetas temporales de ground truth a ventanas espectrales
-* combinar datasets etiquetados válidos
-* transformar datasets al formato tabular `wide` para aprendizaje automático
-* ejecutar baselines simples de clasificación
+El proyecto cubre estos casos de uso:
 
-La lógica principal está organizada dentro del paquete `gait_analysis/`.
+* comprobar conexión, zona horaria, referencia y cobertura de datos en InfluxDB
+* auditar una ventana temporal antes de extraer datos
+* extraer señal cruda por pie
+* generar espectrogramas por ventana temporal
+* etiquetar ventanas espectrales con ground truth
+* combinar varios datasets etiquetados
+* transformar datos de formato largo a formato ancho para ML
+* limpiar y preparar un dataset binario `walking` / `not_walking`
+* entrenar y evaluar modelos clásicos
+* ejecutar inferencia sobre una secuencia temporal raw
 
-## Entorno y dependencias
+La lógica principal está en el paquete `gait_analysis/`.
 
-El proyecto usa **Poetry** para la gestión de dependencias.
+## Entorno
 
-Los ejemplos de este README utilizan comandos genéricos del entorno de Poetry:
+El proyecto usa Poetry para gestionar dependencias.
+
+```bash
+poetry install
+```
+
+Los ejemplos usan:
 
 ```bash
 poetry run python ...
@@ -28,313 +37,811 @@ poetry run python ...
 
 ## Configuración
 
-Debe existir un fichero `.config.yaml` en la raíz del proyecto. En él se definen:
+Debe existir un fichero `.config.yaml` en la raíz del proyecto. Ahí se definen:
 
-* la conexión a InfluxDB
-* los nombres de los tags usados en las consultas
-* la gestión temporal
-* los parámetros del espectrograma
+* conexión a InfluxDB
+* bucket, organización y token
+* tags usados para filtrar referencia y pie
+* zona horaria local
+* señales IMU a procesar
+* pies disponibles
+* parámetros del espectrograma
 
-La configuración actual del espectrograma procesa estas señales IMU:
+La configuración actual procesa:
 
 * acelerómetro: `Ax`, `Ay`, `Az`
 * giroscopio: `Gx`, `Gy`, `Gz`
+* pies: `Right`, `Left`
 
-para ambos pies:
+Las fechas introducidas por CLI se interpretan en la zona horaria configurada y se convierten a UTC antes de consultar InfluxDB.
 
-* `Right`
-* `Left`
+## Flujo general
 
-## Tratamiento horario
+```mermaid
+flowchart TD
+    A[Referencia + rango local] --> B[Validación y diagnóstico]
+    B --> C{¿Influx accesible?}
+    C -- No --> C1[connection_failed<br/>Revisar red/VPN/token]
+    C -- Sí --> D[Auditoría de cobertura]
+    D --> E{¿Datos de ambos pies?}
+    E -- No --> E1[no_records / only_some_feet]
+    E -- Sí --> F{¿Intersección temporal?}
+    F -- No --> F1[no_common_interval]
+    F -- Sí --> G[Extracción raw]
+    G --> H[Extracción spectrogram]
+    H --> I[Etiquetado con ground truth]
+    I --> J[Combinación de datasets]
+    J --> K[Formato wide]
+    K --> L[Limpieza y dataset binario]
+    L --> M[Entrenamiento / evaluación]
+    M --> N[Inferencia secuencial]
+```
 
-Las fechas introducidas por CLI se interpretan en la zona horaria configurada para el proyecto y se convierten a UTC antes de consultar InfluxDB.
+## Etapas del pipeline
 
-Al comparar con Grafana hay que tener en cuenta la zona horaria mostrada por la interfaz. Si Grafana está en hora local del navegador, el rango que se introduzca en el pipeline debe convertirse explícitamente a UTC para reproducir la misma ventana de datos.
+| Etapa | Qué hace | Entrada | Salida |
+| --- | --- | --- | --- |
+| Diagnóstico | Valida configuración, fechas, zona horaria, query Flux y conexión. | referencia, `from`, `until`, `.config.yaml` | salida por consola y opcional `*_doctor.json` |
+| Auditoría de cobertura | Cuenta registros por pie y calcula rangos temporales reales. | referencia, rango temporal, config | CSV con estado de cobertura |
+| Extracción raw | Descarga muestras crudas de InfluxDB por pie. | referencia, rango temporal, config | `.parquet`, `.csv` o `.xlsx` + `*.audit.json` |
+| Extracción spectrogram | Remuestrea, alinea ambos pies, crea ventanas completas y calcula potencia espectral. | datos InfluxDB y config espectral | espectrograma en `.parquet`, `.xlsx` o `.h5` + `*.audit.json` |
+| Ground truth | Importa, limpia o genera tablas de etiquetas temporales. | Excel/CSV de etiquetas o plantilla | ground truth normalizado |
+| Etiquetado | Cruza cada ventana espectral con el ground truth. | espectrograma + ground truth | parquet etiquetado |
+| Combinación | Junta varios bloques etiquetados. | parquets etiquetados | parquet combinado |
+| Wide | Convierte de formato largo a una fila por `time_center`. | parquet combinado | parquet wide |
+| Limpieza | Elimina o controla filas con valores faltantes. | parquet wide | parquet wide limpio |
+| Dataset ML | Construye atributos y objetivo binario. | parquet wide limpio | dataset binario |
+| Modelado | Entrena y evalúa clasificadores. | dataset binario | modelos, predicciones y resúmenes |
+| Inferencia | Aplica un modelo sobre una secuencia temporal. | referencia/rango o espectrograma previo | CSV con probabilidad y predicción por ventana |
 
-## Modos principales de ejecución
+## Diagnóstico rápido
 
-Para una comprobación operativa breve, ver `docs/tutor_quickstart.md`.
-
-### Diagnóstico rápido con `doctor`
-
-Antes de extraer datos, el comando `doctor` valida la configuración, convierte el rango local a UTC, construye las queries Flux, prueba la conexión con InfluxDB y recomienda el siguiente paso.
+Antes de extraer datos, se recomienda ejecutar `doctor`.
 
 ```bash
 poetry run python gait_analysis/doctor.py \
--f "2026-05-05 10:25:00" \
--u "2026-05-06 13:53:00" \
--q "AGCHUG064-10" \
---print-query \
---json-output "salidas_test/AGCHUG064-10_doctor.json"
+  -f "2026-05-05 10:25:00" \
+  -u "2026-05-06 13:53:00" \
+  -q "AGCHUG064-10" \
+  --print-query \
+  --json-output "salidas_test/AGCHUG064-10_doctor.json"
 ```
 
-Si solo se quiere revisar la query sin conectar con InfluxDB:
+Para revisar solo la conversión horaria y la query, sin conectar con InfluxDB:
 
 ```bash
 python gait_analysis/doctor.py \
--f "2026-05-05 10:25:00" \
--u "2026-05-06 13:53:00" \
--q "AGCHUG064-10" \
---dry-run \
---print-query
+  -f "2026-05-05 10:25:00" \
+  -u "2026-05-06 13:53:00" \
+  -q "AGCHUG064-10" \
+  --dry-run \
+  --print-query
 ```
 
-Los estados principales son:
+Secuencia del comando:
 
-* `valid_both_feet`: hay datos de ambos pies e intersección temporal
-* `connection_failed`: no se ha podido abrir conexión con InfluxDB
-* `no_records`: la query no devuelve datos
-* `only_some_feet`: falta cobertura en alguno de los pies
-* `no_common_interval`: hay datos por pie, pero no se solapan
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant D as doctor.py
+    participant C as ConfigLoader
+    participant T as TimeProcessor
+    participant F as FluxQueryBuilder
+    participant I as InfluxService
+    participant J as JSON opcional
 
-### 1. Modo `count`
-
-Se utiliza para comprobar que la extracción desde InfluxDB funciona correctamente.
-
-Ejemplo:
-
-```bash
-poetry run python extract_influx_hdf5.py \
--f "2025-07-01 14:08:20" \
--u "2025-07-01 14:08:40" \
--q "TESTPATIENT-98" \
---mode count \
--v
+    U->>D: referencia, from, until, config
+    D->>C: cargar .config.yaml
+    C-->>D: AppConfig
+    D->>T: convertir local a UTC
+    T-->>D: from_utc, until_utc
+    D->>F: construir query por pie
+    F-->>D: Flux Right/Left
+    alt --dry-run
+        D-->>U: query + status dry_run_ok
+    else conexión real
+        D->>I: consultar InfluxDB
+        I-->>D: tablas o error
+        D-->>U: status + recomendación
+        D->>J: guardar *_doctor.json si se pide
+    end
 ```
 
-Salida esperada:
+Estados principales:
 
-```text
-=== Pie: Right ===
-Flux query enviada a Influx:
-...
-Registros obtenidos de InfluxDB: N
+| Estado | Significado |
+| --- | --- |
+| `valid_both_feet` | Hay datos de ambos pies y se solapan temporalmente. |
+| `connection_failed` | No se ha podido conectar con InfluxDB. |
+| `no_records` | La query conecta, pero no devuelve registros. |
+| `only_some_feet` | Falta cobertura en alguno de los pies. |
+| `no_common_interval` | Hay datos por pie, pero no se solapan temporalmente. |
+| `invalid_time_range` | La fecha final no es posterior a la inicial. |
+| `invalid_datetime` | El formato de fecha no es válido. |
+| `config_failed` | No se ha podido cargar o validar la configuración. |
 
-=== Pie: Left ===
-Flux query enviada a Influx:
-...
-Registros obtenidos de InfluxDB: M
-```
+Guía breve para el tutor: [docs/tutor_quickstart.md](docs/tutor_quickstart.md).
 
-### 2. Modo `spectrogram`
+## Auditoría de cobertura
 
-Genera espectros de potencia usando ventanas deslizantes centradas.
+El script de auditoría genera un CSV reproducible con:
 
-Configuración actual por defecto:
-
-* longitud de ventana: `10 s`
-* paso temporal: `1 s`
-* frecuencia máxima: `5 Hz`
-* tipo de ventana: `hann`
-* escala de potencia: `db`
-
-Ejemplo:
-
-```bash
-poetry run python extract_influx_hdf5.py \
--f "2025-07-01 14:08:20" \
--u "2025-07-01 14:08:40" \
--q "TESTPATIENT-98" \
---mode spectrogram \
--o "salidas_test/test_full_imu.parquet" \
--v
-```
-
-### 3. Modo `raw`
-
-Guarda las muestras crudas recuperadas de InfluxDB, separadas por pie, sin calcular espectrogramas. Es el modo recomendado para inspeccionar visualmente si el rango temporal y la referencia contienen señal real.
-
-```bash
-poetry run python extract_influx_hdf5.py \
--f "2026-05-05 10:25:00" \
--u "2026-05-06 13:53:00" \
--q "AGCHUG064-10" \
---mode raw \
--o "salidas_test/AGCHUG064-10_raw.csv" \
--vv
-```
-
-Los formatos soportados son `.parquet`, `.csv` y `.xlsx`.
-
-Cada ejecución `raw` genera además un manifiesto automático junto al fichero de salida. Por ejemplo, `AGCHUG064-10_raw.csv` produce `AGCHUG064-10_raw.audit.json` con query, rango local/UTC, commit git, configuración, filas por pie y estado final.
-
-### Auditoría de cobertura InfluxDB
-
-Antes de extraer datasets largos conviene auditar la ventana. El script `gait_analysis/audit_influx_window.py` genera un CSV con conversión local/UTC, conteos por pie, mínimos/máximos temporales, intersección común y estado final (`valid_both_feet`, `no_records`, `only_some_feet`, `no_common_interval` o `connection_failed`).
+* referencia
+* rango local y UTC
+* bucket y tags usados
+* señales consultadas
+* filas por pie
+* mínimo y máximo temporal por pie
+* intersección temporal común
+* estado final
 
 ```bash
 poetry run python gait_analysis/audit_influx_window.py \
--f "2026-05-05 10:25:00" \
--u "2026-05-06 13:53:00" \
--q "AGCHUG064-10" \
--o "salidas_test/AGCHUG064-10_audit.csv" \
---print-query
+  -f "2026-05-05 10:25:00" \
+  -u "2026-05-06 13:53:00" \
+  -q "AGCHUG064-10" \
+  -o "salidas_test/AGCHUG064-10_audit.csv" \
+  --print-query
 ```
 
-Para revisar solo la query y la conversión horaria sin conectar con InfluxDB:
+Secuencia del comando:
+
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant A as audit_influx_window.py
+    participant C as ConfigLoader
+    participant T as TimeProcessor
+    participant F as FluxQueryBuilder
+    participant I as InfluxService
+    participant CSV as CSV auditoría
+
+    U->>A: referencia, from, until, output
+    A->>C: cargar configuración
+    C-->>A: AppConfig
+    A->>T: convertir local a UTC
+    A->>F: construir Flux por pie
+    A->>I: consultar Right y Left
+    I-->>A: DataFrames por pie
+    A->>A: contar filas y calcular min/max/intersección
+    A->>CSV: escribir status de cobertura
+    A-->>U: resumen por consola
+```
+
+## Extracción raw
+
+Guarda la señal cruda recuperada de InfluxDB, separada por pie.
 
 ```bash
-python gait_analysis/audit_influx_window.py \
--f "2026-05-05 10:25:00" \
--u "2026-05-06 13:53:00" \
--q "AGCHUG064-10" \
---dry-run
+poetry run python extract_influx_hdf5.py \
+  -f "2026-05-05 10:25:00" \
+  -u "2026-05-06 13:53:00" \
+  -q "AGCHUG064-10" \
+  --mode raw \
+  -o "salidas_test/AGCHUG064-10_raw.csv" \
+  -vv
 ```
 
-### Comportamiento actual del modo `spectrogram`
+Formatos soportados:
 
-El pipeline actual de espectrogramas trabaja de forma robusta sobre ambos pies:
+* `.parquet`
+* `.csv`
+* `.xlsx`
 
-* carga `Right` y `Left` por separado
-* remuestrea ambos pies a una frecuencia común
-* calcula la **intersección temporal real** entre ambos pies y el intervalo solicitado
-* construye una **base temporal común**
-* genera centros de ventana solo donde la ventana completa cabe dentro de la intersección
-* conserva únicamente ventanas **completas y comparables**
-* emite filas con los mismos `time_center` en ambos pies
+Cada extracción raw genera un manifiesto junto al fichero de salida:
 
-Este comportamiento evita ventanas parciales al final del rango y permite comparar ambos pies sobre una base temporal emparejada.
+```text
+salidas_test/AGCHUG064-10_raw.audit.json
+```
 
-Cada ejecución `spectrogram` genera también un manifiesto `*.audit.json` junto a la salida. En caso de que no se genere parquet, el manifiesto conserva la causa (`connection_failed`, `no_common_interval`, `no_complete_windows`, `no_valid_windows`, etc.) y los contadores de ventanas descartadas cuando existan.
+Ese manifiesto conserva query, conversión local/UTC, configuración, commit git, filas por pie y estado final.
 
-## Robustez de ejecución
+Secuencia del comando:
 
-El cliente de InfluxDB se gestiona con cierre explícito mediante gestor de contexto, de modo que las conexiones HTTP se liberan al terminar cada ejecución.
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant E as ExtractApp
+    participant C as ConfigLoader
+    participant F as FluxQueryBuilder
+    participant I as InfluxService
+    participant O as raw.csv/parquet/xlsx
+    participant J as *.audit.json
 
-La configuración YAML se valida al cargarla:
+    U->>E: --mode raw, referencia, from, until
+    E->>C: usar configuración cargada
+    loop Por cada pie configurado
+        E->>F: construir Flux
+        E->>I: consultar InfluxDB
+        I-->>E: DataFrame raw
+    end
+    alt hay muestras
+        E->>O: guardar señal cruda con metadatos
+        E->>J: guardar manifiesto valid_raw / only_some_feet
+    else sin datos o error
+        E->>J: guardar causa no_records / connection_failed
+    end
+```
 
-* frecuencias y duraciones deben ser positivas
-* `fmax_hz` no puede superar la frecuencia de Nyquist
-* `signals` y `feet` no pueden estar vacíos
-* `power_scale` debe ser `db` o `linear`
+## Extracción de espectrogramas
 
-El motor espectral precalcula el vector de frecuencias y la ventana de análisis una sola vez a partir de `window_s` y `resample_hz`.
+Genera espectros de potencia en ventanas temporales centradas. El pipeline:
 
-Para salidas `.parquet` y `.h5` / `.hdf5`, `spectrogram` escribe por fragmentos durante el procesamiento. Esto evita acumular todo el resultado en memoria para extracciones largas. La salida `.xlsx` se mantiene como formato de inspección y se construye en memoria.
+1. carga `Right` y `Left` por separado
+2. remuestrea ambos pies a una frecuencia común
+3. calcula la intersección temporal real entre ambos pies y el rango solicitado
+4. genera centros de ventana solo donde cabe la ventana completa
+5. descarta ventanas incompletas o con baja completitud
+6. calcula potencia espectral por pie y señal
+7. guarda el resultado y un `*.audit.json`
 
-Validación específica del intervalo `PRCHUG025-11` (`2026-02-09 22:31:30` a `2026-02-09 22:45:30`) con ventana de `10 s`:
+```bash
+poetry run python extract_influx_hdf5.py \
+  -f "2026-05-05 10:25:00" \
+  -u "2026-05-06 13:53:00" \
+  -q "AGCHUG064-10" \
+  --mode spectrogram \
+  -o "salidas_test/AGCHUG064-10_spectrogram.parquet" \
+  -vv
+```
 
-* filas HDF5 generadas: `9600`
-* `Right`: `4800` filas, `800` centros
-* `Left`: `4800` filas, `800` centros
-* mismos `time_center` en ambos pies: sí
-* rango de centros: `22:31:40.020` a `22:44:59.020`
-* valores nulos: `0`
-
-## Formatos de salida soportados en `spectrogram`
-
-Según la extensión indicada en `--output`, actualmente se soportan:
+Formatos soportados:
 
 * `.parquet`
 * `.xlsx`
-* `.h5` o `.hdf5`
+* `.h5`
+* `.hdf5`
 
-## Contrato de datos
+Si no se genera salida, el manifiesto `*.audit.json` indica la causa, por ejemplo `connection_failed`, `no_common_interval`, `no_complete_windows` o `no_valid_windows`.
 
-El contrato interno del pipeline real usa:
+Secuencia del comando:
+
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant E as ExtractApp
+    participant F as FluxQueryBuilder
+    participant I as InfluxService
+    participant R as Resampler
+    participant P as PowerSpectrumEngine
+    participant O as spectrogram.parquet/xlsx/h5
+    participant J as *.audit.json
+
+    U->>E: --mode spectrogram, referencia, from, until
+    loop Por cada pie configurado
+        E->>F: construir Flux
+        E->>I: consultar InfluxDB
+        I-->>E: DataFrame raw por pie
+        E->>R: remuestrear y estimar completitud
+    end
+    E->>E: calcular intersección temporal común
+    E->>E: generar centros de ventana completos
+    loop Por cada ventana válida, pie y señal
+        E->>R: rellenar huecos cortos permitidos
+        E->>P: calcular potencia espectral
+        P-->>E: frecuencias y potencias
+    end
+    alt hay filas espectrales
+        E->>O: escribir espectrograma
+        E->>J: guardar manifiesto valid_spectrogram
+    else no hay salida válida
+        E->>J: guardar causa y contadores de descarte
+    end
+```
+
+## Modelo de datos
+
+### Entrada desde InfluxDB
+
+El pipeline principal espera:
 
 * columna temporal `_time`
-* señales IMU con nombres `Ax`, `Ay`, `Az`, `Gx`, `Gy`, `Gz`
-* etiqueta de pie en el tag configurado por `foot_tag`
+* señales IMU `Ax`, `Ay`, `Az`, `Gx`, `Gy`, `Gz`
+* tag de referencia configurado por `ref_tag`
+* tag de pie configurado por `foot_tag`
+* valores de pie coherentes con la configuración, normalmente `Right` y `Left`
 
-Los scripts `consulta_mock.py` de raíz y `proyecto-espectrograma/consulta_mock.py` son utilidades históricas de simulación y no alimentan directamente el pipeline principal. Esos mocks usan `time` y señales en minúscula (`ax`, `ay`, etc.), por lo que no deben interpretarse como contrato actual de entrada para `gait_analysis`.
+Los scripts `consulta_mock.py` de raíz y `proyecto-espectrograma/consulta_mock.py` son utilidades históricas de simulación. Usan `time` y señales en minúscula (`ax`, `ay`, etc.), por lo que no deben tomarse como referencia para la entrada actual de `gait_analysis`.
 
-## Utilidades de ground truth
+### Salida raw
 
-El proyecto incluye scripts auxiliares para preparar y analizar el ground truth:
+La extracción raw añade metadatos de trazabilidad:
 
-* `gait_analysis/build_ground_truth_template.py`
-* `gait_analysis/import_ground_truth_table.py`
-* `gait_analysis/build_ground_truth_excel.py`
-* `gait_analysis/build_window_configs.py`
-* `gait_analysis/summarize_window_experiments.py`
-* `gait_analysis/label_spectrogram_with_ground_truth.py`
-* `gait_analysis/summarize_labeled_spectrogram.py`
-* `gait_analysis/combine_labeled_datasets.py`
-* `gait_analysis/build_wide_dataset.py`
-* `gait_analysis/inspect_wide_dataset.py`
-* `gait_analysis/clean_wide_dataset.py`
-* `gait_analysis/prepare_ml_dataset.py`
+* `reference`
+* `foot`
+* `_time`
+* señales IMU
+* `from_local`
+* `until_local`
+* `timezone`
+* `from_utc`
+* `until_utc`
 
-Estos scripts permiten:
+### Salida spectrogram
 
-* generar una plantilla Excel de ground truth con intervalos temporales fijos para su etiquetado manual posterior usando Grafana
-* importar tablas exportadas y adaptarlas al formato estándar del proyecto
-* limpiar y normalizar Excels de etiquetas de marcha
-* preparar configuraciones para distintas longitudes de ventana
-* resumir experimentos comparativos entre ventanas
-* asignar etiquetas `walking` / `not_walking` a ventanas espectrales
-* conservar o filtrar ventanas `NO_LABEL`
-* combinar varios datasets etiquetados
-* transformar datasets etiquetados de formato `long` a formato `wide`
-* inspeccionar datasets preparados para ML
-* limpiar datasets `wide` eliminando filas con valores faltantes
-* preparar atributos por ventana con objetivo binario `0` / `1`
+Cada fila representa una combinación de:
 
-## Integración con Grafana
+* `reference`
+* `foot`
+* `signal`
+* `time_center`
+* potencias espectrales `p_*`
+* `sample_completeness`
 
-El proyecto soporta un flujo semiautomático para construir ground truth a partir de datos exportados desde Grafana.
-Grafana se usa aquí como interfaz de revisión y exportación de etiquetas, no como origen de la señal cruda del pipeline de extracción.
+### Dataset wide
 
-Flujo actual:
+El formato wide tiene una fila por `reference` y `time_center`. Las columnas de potencia se expanden por pie, señal y frecuencia para usarse como atributos de ML.
 
-1. inspección visual o exportación de datos desde un panel de Grafana
-2. exportación de la tabla en formato CSV o Excel
-3. adaptación al formato estándar del proyecto mediante `gait_analysis/import_ground_truth_table.py`
-4. limpieza y normalización final con `gait_analysis/build_ground_truth_excel.py`
+### Dataset binario
 
-Este flujo permite convertir tablas exportadas desde Grafana al formato interno de ground truth usado por el pipeline:
+El dataset binario añade una variable objetivo:
 
-* `Reference`
-* `datefrom`
-* `dateuntil`
-* `mov_type`
+* `not_walking` -> `0`
+* `walking` -> `1`
 
-La integración actual es **semiautomática**: Grafana se utiliza como fuente de datos exportables o apoyo visual para etiquetado, pero la construcción final del ground truth todavía requiere una fase intermedia de importación/normalización dentro del proyecto.
+## Componentes principales
 
-Importante: la extracción de señales del pipeline principal no depende de esos CSV/Excel de Grafana. El código consulta InfluxDB directamente mediante Flux (`FluxQueryBuilder` + `InfluxService`) y genera las ventanas espectrales desde ahí. Si un panel de Grafana aplica agregaciones, esas agregaciones afectan solo a la exportación de Grafana, no al extractor del repositorio.
+```mermaid
+classDiagram
+    direction LR
 
-## Pipeline actual de etiquetado y preparación para ML
+    class CLI {
+        +parse(argv) CliArgs
+    }
 
-El flujo actual de preparación de datos incluye:
+    class CliArgs {
+        <<dataclass>>
+        +str from_time
+        +str until
+        +str reference
+        +str output
+        +str mode
+        +int verbose
+        +bool dry_run
+    }
 
-1. extracción de señales desde InfluxDB
-2. generación de espectrogramas con IMU completa en ambos pies
-3. alineación temporal robusta entre ambos pies
-4. asignación de etiquetas temporales desde el ground truth limpio
-5. marcaje de ventanas ambiguas como `NO_LABEL`
-6. filtrado opcional de dichas ventanas
-7. combinación de referencias válidas y bloques temporales válidos
-8. transformación del dataset a formato `wide`
-9. limpieza del dataset `wide`
-10. preparación del dataset final para aprendizaje automático con `target` binario
+    class AppConfig {
+        <<dataclass>>
+        +InfluxConfig influx
+        +str default_tz
+        +str ref_tag
+        +str foot_tag
+        +SpectrogramConfig spectrogram
+    }
 
-En el formato `wide`, cada fila representa un centro temporal de ventana y contiene las variables espectrales de potencia asociadas a cada combinación de pie y señal.
+    class InfluxConfig {
+        <<dataclass>>
+        +str url
+        +str org
+        +str bucket
+        +str token
+        +bool verify_ssl
+        +int timeout
+    }
 
-El dataset binario preparado conserva los identificadores de ventana, añade `target` y mantiene las columnas espectrales como atributos:
+    class SpectrogramConfig {
+        <<dataclass>>
+        +float window_s
+        +float delta_t_s
+        +float fmax_hz
+        +str window_type
+        +str power_scale
+        +list signals
+        +list feet
+        +float resample_hz
+        +str detrend
+        +float max_interpolate_gap_s
+        +float min_window_completeness
+    }
 
-* `not_walking` => `0`
-* `walking` => `1`
+    class ConfigLoader {
+        +load() AppConfig
+    }
 
-## Flujo reproducible end-to-end
+    class ExtractApp {
+        +run()
+        +run_count()
+        +run_raw()
+        +run_spectrogram()
+        +print_planned_queries()
+    }
 
-Para asegurar reproducibilidad, el repositorio incluye un orquestador que reconstruye el flujo completo desde un ground truth UTC único:
+    class Doctor {
+        +main()
+    }
 
-* `gait_analysis/reproduce_direct_influx_pipeline.py`
-* entrada directa equivalente para extracción puntual: `extract_influx_hdf5.py` o `poetry run python -m gait_analysis`
+    class AuditInfluxWindow {
+        +build_flux(...)
+        +summarize_foot(df, foot)
+        +compute_status(...)
+        +main()
+    }
 
-Ese script:
+    class FluxQueryBuilder {
+        +build(...) str
+    }
 
-1. lee `experiment_configs/reproducible_direct_influx_ground_truth_utc.csv`
-2. extrae los intervalos directamente desde InfluxDB con Flux
-3. etiqueta los espectrogramas con el ground truth
-4. combina y limpia los datasets
-5. genera el parquet binario final
-6. ejecuta la comparación `RF / XGBoost / CatBoost` con `CV=3`
-7. entrena el `Random Forest` final
-8. evalúa el modelo final con validación temporal por bloques
+    class InfluxService {
+        +query(flux)
+        +tables_to_dataframe(tables) DataFrame
+        +count_records(tables) int
+        +close()
+    }
 
-Ejemplo de uso:
+    class TimeProcessor {
+        +to_utc_rfc3339_and_key(dt, tz)
+        +to_local_datetime(dt, tz)
+        +to_utc_datetime(dt, tz)
+        +generate_window_centers(...)
+    }
+
+    class Resampler {
+        +resample_dataframe(...)
+        +window_sample_completeness(...)
+        +fill_short_window_gaps(...)
+    }
+
+    class PowerSpectrumEngine {
+        +compute(values)
+    }
+
+    class ParquetRowBuilder {
+        +build_row(...)
+    }
+
+    CLI --> ExtractApp
+    CLI --> CliArgs
+    ConfigLoader --> ExtractApp
+    ConfigLoader --> AppConfig
+    AppConfig *-- InfluxConfig
+    AppConfig *-- SpectrogramConfig
+    ExtractApp --> CliArgs
+    ExtractApp --> AppConfig
+    ExtractApp --> FluxQueryBuilder
+    ExtractApp --> InfluxService
+    ExtractApp --> TimeProcessor
+    ExtractApp --> Resampler
+    ExtractApp --> PowerSpectrumEngine
+    PowerSpectrumEngine --> ParquetRowBuilder
+    Doctor --> ConfigLoader
+    Doctor --> TimeProcessor
+    Doctor --> AuditInfluxWindow
+    AuditInfluxWindow --> FluxQueryBuilder
+    AuditInfluxWindow --> InfluxService
+```
+
+Responsabilidades principales:
+
+| Componente | Responsabilidad |
+| --- | --- |
+| `CLI` / `CliArgs` | Parsear argumentos de línea de comandos y normalizar opciones de ejecución. |
+| `ConfigLoader` / `AppConfig` | Cargar y validar la configuración YAML del proyecto. |
+| `ExtractApp` | Orquestar los modos `count`, `raw`, `spectrogram` y los manifiestos `*.audit.json`. |
+| `FluxQueryBuilder` | Construir consultas Flux reproducibles para InfluxDB. |
+| `InfluxService` | Ejecutar consultas y convertir tablas Flux a `DataFrame`. |
+| `TimeProcessor` | Convertir fechas locales a UTC y generar centros de ventana. |
+| `Resampler` | Remuestrear señales, calcular completitud y rellenar huecos cortos. |
+| `PowerSpectrumEngine` | Calcular potencia espectral de cada ventana. |
+| `ParquetRowBuilder` | Construir filas espectrales en formato largo. |
+| `Doctor` | Ejecutar diagnóstico operativo de una ventana antes de extraer datos. |
+| `AuditInfluxWindow` | Generar auditoría de cobertura por pie e intersección temporal. |
+
+## Modelado
+
+El repositorio contempla dos familias de modelos:
+
+* modelos tabulares clásicos, entrenados sobre una fila por ventana temporal
+* modelos secuenciales tipo transformer, entrenados sobre varias ventanas consecutivas
+
+Ambas familias parten de datos ya extraídos, etiquetados y preparados. No entrenan directamente desde InfluxDB.
+
+### Dataset tabular para modelos clásicos
+
+Antes de entrenar modelos clásicos, el espectrograma etiquetado se convierte a formato `wide`, se limpia y se transforma en un dataset binario.
+
+```bash
+poetry run python gait_analysis/build_wide_dataset.py \
+  -i "salidas_test/combined_labeled.parquet" \
+  -o "salidas_test/combined_wide.parquet"
+
+poetry run python gait_analysis/clean_wide_dataset.py \
+  -i "salidas_test/combined_wide.parquet" \
+  -o "salidas_test/combined_wide_clean.parquet"
+
+poetry run python gait_analysis/prepare_ml_dataset.py \
+  -i "salidas_test/combined_wide_clean.parquet" \
+  -o "salidas_test/main_binary_window_features.parquet"
+```
+
+Entrada:
+
+* parquet etiquetado en formato largo
+* columnas espectrales `p_*`
+* etiqueta temporal `walking` / `not_walking`
+
+Salida:
+
+* parquet binario con una fila por ventana
+* columna `target`
+* columnas de atributos listas para ML
+
+### Comparación de modelos clásicos
+
+El script de comparación entrena y evalúa varios modelos tabulares sobre el dataset binario.
+
+```bash
+poetry run python gait_analysis/run_ml_model_comparison_cv3.py \
+  -i "salidas_test/main_binary_window_features.parquet" \
+  --fold-output "results/ml_model_comparison_cv3_folds.csv" \
+  --summary-output "results/ml_model_comparison_cv3_summary.csv"
+```
+
+Qué entrena:
+
+* Random Forest
+* XGBoost
+* CatBoost
+
+Entrada:
+
+* parquet binario con `target`
+* columnas espectrales en formato wide
+
+Salida:
+
+* CSV con métricas por fold
+* CSV resumen por modelo
+
+Secuencia del comando:
+
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant S as run_ml_model_comparison_cv3.py
+    participant D as Dataset binario
+    participant RF as RandomForest
+    participant XGB as XGBoost
+    participant CB as CatBoost
+    participant OUT as CSV resultados
+
+    U->>S: input, fold-output, summary-output
+    S->>D: leer parquet binario
+    S->>S: separar X, y y folds estratificados
+    loop Por cada fold
+        S->>RF: fit/predict
+        S->>XGB: fit/predict
+        S->>CB: fit/predict
+        S->>S: calcular métricas
+    end
+    S->>OUT: guardar métricas por fold y resumen
+```
+
+### Entrenamiento del modelo clásico final
+
+El entrenamiento final ajusta un Random Forest sobre todo el dataset binario y guarda el artefacto reutilizable.
+
+```bash
+poetry run python gait_analysis/train_final_model.py \
+  -i "salidas_test/main_binary_window_features.parquet" \
+  -m "models/final_random_forest_model.joblib" \
+  -s "results/final_model_summary.json"
+```
+
+Entrada:
+
+* parquet binario con `target`
+* columnas espectrales de entrada
+
+Salida:
+
+* `joblib` con el modelo entrenado
+* JSON con resumen del entrenamiento, columnas usadas y configuración
+
+### Evaluación del modelo clásico final
+
+La evaluación final reconstruye una validación por bloques temporales para estimar comportamiento fuera de muestra.
+
+```bash
+poetry run python gait_analysis/evaluate_final_model.py \
+  -i "salidas_test/main_binary_window_features.parquet" \
+  -m "models/final_random_forest_model.joblib" \
+  --fold-output "results/final_model_grouped_cv_results.csv" \
+  --prediction-output "results/final_model_grouped_cv_predictions.csv" \
+  --importance-output "results/final_model_feature_importances.csv" \
+  --summary-output "results/final_model_evaluation.json"
+```
+
+Entrada:
+
+* parquet binario
+* modelo final entrenado
+
+Salida:
+
+* métricas por bloque
+* predicciones out-of-fold por ventana
+* importancia de variables
+* JSON de evaluación agregada
+
+### Inferencia con modelo clásico sobre una secuencia
+
+La inferencia secuencial extrae o reutiliza un espectrograma, lo convierte a wide y aplica el modelo final por ventana.
+
+```bash
+poetry run python gait_analysis/predict_walking_sequence.py \
+  -q "REFERENCE" \
+  -f "YYYY-MM-DD HH:MM:SS" \
+  -u "YYYY-MM-DD HH:MM:SS" \
+  -m "models/final_random_forest_model.joblib" \
+  -o "salidas_test/sequence_predictions/REFERENCE_predictions.csv"
+```
+
+Si ya existe un espectrograma:
+
+```bash
+poetry run python gait_analysis/predict_walking_sequence.py \
+  --spectrogram-input "salidas_test/REFERENCE_spectrogram.parquet" \
+  -q "REFERENCE" \
+  -f "YYYY-MM-DD HH:MM:SS" \
+  -u "YYYY-MM-DD HH:MM:SS" \
+  -m "models/final_random_forest_model.joblib" \
+  -o "salidas_test/sequence_predictions/REFERENCE_predictions.csv"
+```
+
+Salida:
+
+* CSV con `time_center`
+* probabilidad `walking_probability`
+* predicción binaria y etiqueta textual
+
+### Dataset secuencial para transformer
+
+Los modelos tipo transformer no usan una ventana aislada, sino secuencias de ventanas consecutivas. Primero se construye un `.npz` secuencial a partir del dataset binario.
+
+```bash
+poetry run python gait_analysis/build_transformer_sequence_dataset.py \
+  -i "salidas_test/main_binary_window_features.parquet" \
+  -o "salidas_test/transformer_sequence_dataset_len9.npz" \
+  --metadata-output "salidas_test/transformer_sequence_dataset_len9_metadata.csv" \
+  --summary-output "results/transformer_sequence_dataset_summary.json" \
+  --sequence-length 9
+```
+
+Entrada:
+
+* parquet binario tabular
+* grupos temporales inferidos a partir de `time_center`
+
+Salida:
+
+* `.npz` con tensor `X`, etiquetas `y`, grupos y columnas de atributos
+* CSV de metadatos por secuencia
+* JSON resumen
+
+### Entrenamiento y evaluación de transformer por bloques
+
+Este entrenamiento evalúa el transformer con validación por grupos temporales.
+
+```bash
+poetry run python gait_analysis/train_transformer_sequence_classifier.py \
+  -i "salidas_test/transformer_sequence_dataset_len9.npz" \
+  --fold-output "results/transformer_sequence_cv_results.csv" \
+  --prediction-output "results/transformer_sequence_cv_predictions.csv" \
+  --summary-output "results/transformer_sequence_summary.json" \
+  --validation-mode group
+```
+
+Entrada:
+
+* `.npz` secuencial
+
+Salida:
+
+* CSV de métricas por fold
+* CSV de predicciones out-of-fold
+* JSON resumen de evaluación
+
+Secuencia del entrenamiento transformer:
+
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant S as build_transformer_sequence_dataset.py
+    participant D as Dataset binario
+    participant NPZ as Dataset secuencial NPZ
+    participant T as train_transformer_sequence_classifier.py
+    participant OUT as Resultados transformer
+
+    U->>S: parquet binario + sequence-length
+    S->>D: leer ventanas tabulares
+    S->>S: agrupar por bloques temporales
+    S->>S: construir secuencias centradas
+    S->>NPZ: guardar X, y, grupos y metadatos
+    U->>T: NPZ secuencial
+    T->>NPZ: cargar tensores y grupos
+    loop Por cada fold temporal
+        T->>T: entrenar transformer
+        T->>T: predecir fold de test
+    end
+    T->>OUT: guardar métricas, predicciones y resumen
+```
+
+### Entrenamiento del transformer final
+
+Cuando ya se ha decidido una configuración, se entrena el transformer final sobre todo el dataset secuencial.
+
+```bash
+poetry run python gait_analysis/train_final_transformer_sequence_model.py \
+  -i "salidas_test/transformer_sequence_dataset_len9.npz" \
+  -o "models/final_transformer_sequence_model_unweighted_nols.pt" \
+  --summary-output "results/final_transformer_sequence_model_unweighted_nols_summary.json"
+```
+
+Entrada:
+
+* `.npz` secuencial
+
+Salida:
+
+* artefacto `.pt` de PyTorch
+* JSON resumen del entrenamiento final
+
+### Inferencia con transformer sobre una secuencia
+
+La inferencia transformer extrae o reutiliza un espectrograma, construye secuencias de ventanas y predice sobre el centro de cada secuencia.
+
+```bash
+poetry run python gait_analysis/predict_transformer_walking_sequence.py \
+  -q "REFERENCE" \
+  -f "YYYY-MM-DD HH:MM:SS" \
+  -u "YYYY-MM-DD HH:MM:SS" \
+  -m "models/final_transformer_sequence_model_unweighted_nols.pt" \
+  -o "salidas_test/transformer_sequence_predictions/REFERENCE_predictions.csv"
+```
+
+Si ya existe un espectrograma:
+
+```bash
+poetry run python gait_analysis/predict_transformer_walking_sequence.py \
+  --spectrogram-input "salidas_test/REFERENCE_spectrogram.parquet" \
+  -q "REFERENCE" \
+  -f "YYYY-MM-DD HH:MM:SS" \
+  -u "YYYY-MM-DD HH:MM:SS" \
+  -m "models/final_transformer_sequence_model_unweighted_nols.pt" \
+  -o "salidas_test/transformer_sequence_predictions/REFERENCE_predictions.csv"
+```
+
+Salida:
+
+* CSV con `time_center`
+* rango temporal de cada secuencia
+* probabilidad de marcha
+* predicción final
+
+## Scripts por etapa
+
+| Etapa | Script |
+| --- | --- |
+| Diagnóstico | `gait_analysis/doctor.py` |
+| Auditoría de cobertura | `gait_analysis/audit_influx_window.py` |
+| Extracción raw/spectrogram | `extract_influx_hdf5.py` o `gait_analysis/app.py` |
+| Plantilla ground truth | `gait_analysis/build_ground_truth_template.py` |
+| Importación ground truth | `gait_analysis/import_ground_truth_table.py` |
+| Limpieza ground truth | `gait_analysis/build_ground_truth_excel.py` |
+| Etiquetado | `gait_analysis/label_spectrogram_with_ground_truth.py` |
+| Combinación | `gait_analysis/combine_labeled_datasets.py` |
+| Wide | `gait_analysis/build_wide_dataset.py` |
+| Limpieza wide | `gait_analysis/clean_wide_dataset.py` |
+| Dataset ML | `gait_analysis/prepare_ml_dataset.py` |
+| Comparación de modelos | `gait_analysis/run_ml_model_comparison_cv3.py` |
+| Entrenamiento final | `gait_analysis/train_final_model.py` |
+| Evaluación final | `gait_analysis/evaluate_final_model.py` |
+| Inferencia secuencial | `gait_analysis/predict_walking_sequence.py` |
+| Pipeline reproducible completo | `gait_analysis/reproduce_direct_influx_pipeline.py` |
+
+## Flujo reproducible completo
+
+El orquestador principal reconstruye el flujo desde un ground truth UTC:
 
 ```bash
 poetry run python gait_analysis/reproduce_direct_influx_pipeline.py \
@@ -345,1134 +852,103 @@ poetry run python gait_analysis/reproduce_direct_influx_pipeline.py \
   --models-dir models
 ```
 
-Si InfluxDB ya no está disponible, el script admite `--resume-existing` y `--cache-dir` para reutilizar parquets ya generados.
+Ese flujo:
 
-Para ejecutar solo la extracción puntual:
+1. lee una tabla de ground truth
+2. extrae intervalos desde InfluxDB
+3. genera espectrogramas
+4. etiqueta ventanas
+5. combina y limpia datasets
+6. genera dataset binario
+7. ejecuta comparación de modelos
+8. entrena y evalúa artefactos finales
 
-```bash
-poetry run python extract_influx_hdf5.py --mode spectrogram --config experiment_configs/config_window_1s_manual_newpatients.yaml --from-tz Europe/Madrid -f "2025-07-16 10:15:00" -u "2025-07-16 11:15:00" -q "ACL1998-96" -o salida.parquet
+Si InfluxDB no está disponible, el script puede reutilizar salidas existentes mediante sus opciones de caché.
+
+Secuencia del comando:
+
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant R as reproduce_direct_influx_pipeline.py
+    participant GT as Ground truth UTC
+    participant X as ExtractApp
+    participant L as label_spectrogram_with_ground_truth.py
+    participant C as combine_labeled_datasets.py
+    participant W as build_wide_dataset.py
+    participant B as prepare_ml_dataset.py
+    participant M as Model scripts
+    participant OUT as workdir/results/models
+
+    U->>R: ground-truth, config, workdir, results-dir
+    R->>GT: leer ventanas etiquetadas
+    loop Por cada intervalo
+        R->>X: extraer spectrogram desde InfluxDB
+        X-->>OUT: parquet espectral
+        R->>L: etiquetar ventanas
+        L-->>OUT: parquet etiquetado
+    end
+    R->>C: combinar parquets etiquetados
+    C-->>OUT: dataset combinado
+    R->>W: convertir a wide
+    W-->>OUT: dataset wide
+    R->>B: preparar dataset binario
+    B-->>OUT: dataset ML
+    R->>M: comparar, entrenar y evaluar modelos
+    M-->>OUT: resultados y artefactos
 ```
 
-También puede ejecutarse como módulo:
+## Integración con Grafana
+
+Grafana se usa como apoyo de inspección visual y como origen de tablas exportadas para ground truth, no como origen directo de señal para el pipeline principal.
+
+Flujo habitual:
+
+1. revisar intervalos en Grafana
+2. exportar tabla CSV/Excel con etiquetas
+3. importar y normalizar con scripts del repositorio
+4. usar el ground truth resultante para etiquetar ventanas extraídas directamente de InfluxDB
+
+La señal cruda del pipeline se consulta siempre desde InfluxDB mediante Flux.
+
+## Artefactos generados
+
+El repositorio genera principalmente:
+
+* parquets raw
+* parquets de espectrograma
+* parquets etiquetados
+* datasets wide
+* datasets binarios para ML
+* modelos serializados en `models/`
+* resúmenes y predicciones en `results/`
+* manifiestos `*.audit.json`
+
+Los resultados experimentales concretos se versionan en `results/`. El README se limita a describir el funcionamiento del repositorio y las rutas de uso.
+
+## Pendiente
+
+Quedan líneas de trabajo abiertas:
+
+* consolidar una interfaz única para ejecutar auditoría por lotes sobre muchas ventanas
+* permitir generar espectrogramas desde un raw cacheado sin volver a consultar InfluxDB
+* ampliar datos de pacientes y segmentos con artefactos de no marcha
+* mantener la documentación de resultados separada del README principal
+
+## Comandos mínimos recomendados
+
+Para una ventana nueva:
 
 ```bash
-poetry run python -m gait_analysis --mode count --config experiment_configs/config_window_1s_manual_newpatients.yaml -f "2025-07-16 10:15:00" -u "2025-07-16 11:15:00" -q "ACL1998-96"
+poetry run python gait_analysis/doctor.py -f "YYYY-MM-DD HH:MM:SS" -u "YYYY-MM-DD HH:MM:SS" -q "REFERENCE" --print-query --json-output "salidas_test/REFERENCE_doctor.json"
+poetry run python extract_influx_hdf5.py -f "YYYY-MM-DD HH:MM:SS" -u "YYYY-MM-DD HH:MM:SS" -q "REFERENCE" --mode raw -o "salidas_test/REFERENCE_raw.csv" -vv
+poetry run python extract_influx_hdf5.py -f "YYYY-MM-DD HH:MM:SS" -u "YYYY-MM-DD HH:MM:SS" -q "REFERENCE" --mode spectrogram -o "salidas_test/REFERENCE_spectrogram.parquet" -vv
 ```
 
-Y si se quiere ejecutar directamente el fichero interno:
-
-```bash
-poetry run python gait_analysis/app.py --mode count --config experiment_configs/config_window_1s_manual_newpatients.yaml -f "2025-07-16 10:15:00" -u "2025-07-16 11:15:00" -q "ACL1998-96"
-```
-
-### Componentes del flujo
-
-Si el tutor quiere validar por partes, estos son los pasos y sus scripts:
-
-| Paso | Script | Entrada principal | Salida principal |
-| --- | --- | --- | --- |
-| Extracción directa | `gait_analysis/extract_influx_hdf5.py` | `-f`, `-u`, `-q`, `--config` | parquet de espectrograma |
-| Etiquetado | `gait_analysis/label_spectrogram_with_ground_truth.py` | parquet + ground truth UTC | parquet etiquetado + `_filtered` |
-| Combinación | `gait_analysis/combine_labeled_datasets.py` | varios parquets etiquetados | parquet combinado |
-| Wide | `gait_analysis/build_wide_dataset.py` | parquet combinado long | parquet wide |
-| Limpieza | `gait_analysis/clean_wide_dataset.py` | parquet wide | parquet wide limpio |
-| Dataset binario | `gait_analysis/prepare_ml_dataset.py` | wide limpio | parquet binario final |
-| CV3 clásica | `gait_analysis/run_ml_model_comparison_cv3.py` | parquet binario | CSV de folds y resumen |
-| Modelo final | `gait_analysis/train_final_model.py` | parquet binario | `joblib` + JSON resumen |
-| Evaluación final | `gait_analysis/evaluate_final_model.py` | parquet binario + modelo | CSV de predicciones, importancia y JSON |
-
-Comandos equivalentes por pasos:
-
-```bash
-poetry run python gait_analysis/extract_influx_hdf5.py --mode spectrogram --config experiment_configs/config_window_1s_manual_newpatients.yaml --from-tz Europe/Madrid -f "YYYY-MM-DD HH:MM:SS" -u "YYYY-MM-DD HH:MM:SS" -q "REFERENCE" -o salida.parquet
-poetry run python gait_analysis/label_spectrogram_with_ground_truth.py -i salida.parquet -g experiment_configs/reproducible_direct_influx_ground_truth_utc.csv -o salida_labeled.parquet
-poetry run python gait_analysis/combine_labeled_datasets.py -i file1.parquet file2.parquet -o combined.parquet
-poetry run python gait_analysis/build_wide_dataset.py -i combined.parquet -o combined_wide.parquet
-poetry run python gait_analysis/clean_wide_dataset.py -i combined_wide.parquet -o combined_wide_clean.parquet
-poetry run python gait_analysis/prepare_ml_dataset.py -i combined_wide_clean.parquet -o main_binary_window_features.parquet
-```
-
-## Baselines iniciales
-
-Se han ejecutado baselines simples sobre el dataset principal en formato `wide` limpio.
-
-Dataset actual usado para clasificación:
-
-* muestras totales: `1293`
-* `not_walking`: `766`
-* `walking`: `527`
-
-Modelos comparados:
-
-* clasificador trivial
-* Logistic Regression
-* Random Forest
-* XGBoost
-* CatBoost
-
-En la versión ampliada actual del dataset, **Random Forest** obtiene mayor accuracy y mejores métricas de la clase `walking` que la Logistic Regression.
-
-Resultados principales del dataset final actual:
-
-* **Logistic Regression**
-
-  * accuracy: `0.6960`
-  * `F1-score (walking)`: `0.6474`
-  * `recall (walking)`: `0.6849`
-
-* **Random Forest**
-
-  * accuracy: `0.7672`
-  * `F1-score (walking)`: `0.7092`
-  * `recall (walking)`: `0.6963`
-
-La principal conclusión es que **la accuracy por sí sola no es suficiente** para evaluar este problema. La ampliación de segmentos `walking` mejora la señal útil de ambos baselines, especialmente el `F1-score` de la clase positiva.
-
-También se ha añadido una validación más conservadora por bloques temporales completos, usando Leave-One-Group-Out sobre bloques inferidos por saltos temporales. Esta evaluación evita mezclar ventanas temporalmente contiguas entre entrenamiento y test, por lo que sus resultados son más duros:
-
-* **Logistic Regression agrupada**
-
-  * accuracy ponderada por filas: `0.5228`
-  * `F1-score (walking)` ponderado por filas: `0.4144`
-  * `recall (walking)` ponderado por filas: `0.5698`
-
-* **Random Forest agrupado**
-
-  * accuracy ponderada por filas: `0.5553`
-  * `F1-score (walking)` ponderado por filas: `0.3918`
-  * `recall (walking)` ponderado por filas: `0.5079`
-
-Esta diferencia indica que la validación estratificada aleatoria probablemente sobreestima la generalización, porque ventanas próximas comparten mucha estructura temporal.
-
-También se ha añadido una comparación de modelos de aprendizaje automático con **Cross Validation estratificada de 3 folds**, siguiendo la evaluación solicitada para Random Forest, XGBoost y CatBoost. En esta comparación se calculan accuracy, precision, recall y F1-score, incluyendo media y desviación estándar por modelo.
-
-Resultados principales para la clase `walking`:
-
-* **Random Forest conservador**
-
-  * accuracy: `0.7394 ± 0.0117`
-  * precision (`walking`): `0.6497 ± 0.0205`
-  * recall (`walking`): `0.7856 ± 0.0327`
-  * `F1-score (walking)`: `0.7107 ± 0.0101`
-
-* **XGBoost**
-
-  * accuracy: `0.7618 ± 0.0119`
-  * precision (`walking`): `0.6886 ± 0.0106`
-  * recall (`walking`): `0.7590 ± 0.0481`
-  * `F1-score (walking)`: `0.7216 ± 0.0221`
-
-* **CatBoost**
-
-  * accuracy: `0.7579 ± 0.0149`
-  * precision (`walking`): `0.6847 ± 0.0118`
-  * recall (`walking`): `0.7534 ± 0.0597`
-  * `F1-score (walking)`: `0.7166 ± 0.0265`
-
-En esta comparación, XGBoost obtiene el mejor rendimiento medio en accuracy y F1-score de la clase `walking`, aunque Random Forest conserva el mejor recall medio para detectar marcha.
-
-## Modelo final
-
-El modelo final actual se entrena sobre todo el dataset binario preparado, usando una versión conservadora del baseline con mejor comportamiento exploratorio: **Random Forest** con `class_weight="balanced"`, profundidad limitada y hojas mínimas de 10 muestras para reducir sobreajuste entre ventanas próximas.
-
-Entrenamiento:
-
-```bash
-poetry run python gait_analysis/train_final_model.py
-```
-
-Este comando genera:
-
-* `models/final_random_forest_model.joblib`
-  Artefacto serializado con el modelo entrenado, columnas de entrada y mapa de clases.
-
-* `results/final_model_summary.json`
-  Resumen reproducible del entrenamiento, incluyendo filas, referencias, columnas de atributos y configuración del modelo.
-
-Las métricas de rendimiento que deben reportarse siguen siendo las de validación cruzada y validación por bloques descritas en la sección anterior. Las métricas internas del resumen del modelo están calculadas sobre el conjunto completo usado para entrenar y solo sirven como comprobación de ajuste, no como estimación de generalización.
-
-La evaluación reportable del modelo final se genera con:
-
-```bash
-poetry run python gait_analysis/evaluate_final_model.py
-```
-
-Esta evaluación usa Leave-One-Group-Out por bloques temporales completos y genera:
-
-* `results/final_model_evaluation.json`
-  Resumen agregado con métricas out-of-fold, matriz de confusión e informe de clasificación.
-
-* `results/final_model_grouped_cv_results.csv`
-  Métricas por bloque temporal.
-
-* `results/final_model_grouped_cv_predictions.csv`
-  Predicciones out-of-fold por ventana.
-
-* `results/final_model_feature_importances.csv`
-  Importancia de las variables del Random Forest final.
-
-Resultados principales de la evaluación por bloques del modelo final:
-
-* accuracy out-of-fold: `0.5800`
-* `F1-score (walking)` out-of-fold: `0.6079`
-* recall out-of-fold (`walking`): `0.7989`
-* matriz de confusión (`not_walking`, `walking`): `[[329, 437], [106, 421]]`
-
-La inferencia sobre una secuencia temporal se ejecuta con:
-
-```bash
-poetry run python gait_analysis/predict_walking_sequence.py \
-  -q "47046344M-104" \
-  -f "2024-10-15 07:47:57" \
-  -u "2024-10-15 07:48:44" \
-  -o salidas_test/sequence_predictions/predictions.csv
-```
-
-Este comando aplica la forma de uso final del clasificador: extrae una secuencia temporal de datos IMU, recorre la señal con la ventana móvil configurada, calcula las características espectrales y devuelve una tabla temporal con:
-
-* `time_center`
-* `prediction`
-* `prediction_label`
-* `walking_probability`
-
-Si el espectrograma ya se ha extraído previamente, se puede omitir la consulta a InfluxDB con `--spectrogram-input`.
-
-Cuando existan segmentos marcados como `use_for_sequence_eval=True` en `experiment_configs/sequence_evaluation_windows.csv`, la evaluación automática contra ground truth se ejecuta con:
-
-```bash
-poetry run python -m gait_analysis.run_sequence_evaluation
-```
-
-Este script lanza la inferencia por ventana móvil para cada segmento, cruza cada `time_center` con `ground_truth_clean.xlsx` y genera métricas por segmento y agregadas.
-
-Con las ventanas válidas comprobadas en InfluxDB, la primera evaluación secuencial genera 820 ventanas temporales evaluadas. El resultado agregado actual es:
-
-* accuracy: `0.2341`
-* precision (`walking`): `0.0188`
-* recall (`walking`): `1.0000`
-* F1-score (`walking`): `0.0368`
-* matriz de confusión (`not_walking`, `walking`): `[[180, 628], [0, 12]]`
-
-Estos resultados confirman que el clasificador conserva sensibilidad para detectar marcha, pero produce demasiados falsos positivos sobre segmentos de no marcha cuando se aplica como ventana móvil en secuencia temporal.
-
-Para analizar este comportamiento sin volver a consultar InfluxDB, se puede recalcular la decisión final a partir de `walking_probability` probando varios umbrales:
-
-```bash
-poetry run python -m gait_analysis.tune_sequence_threshold
-```
-
-El barrido inicial muestra que el umbral `0.65` mejora el equilibrio actual frente al umbral por defecto `0.50`:
-
-* umbral `0.50`: accuracy `0.2341`, precision `0.0188`, recall `1.0000`, F1 `0.0368`, falsos positivos `628`
-* umbral `0.65`: accuracy `0.6061`, precision `0.0245`, recall `0.6667`, F1 `0.0472`, falsos positivos `319`
-
-El ajuste reduce de forma clara los falsos positivos, aunque todavía mantiene una precision baja. Por tanto, el siguiente refinamiento metodológico debe incorporar suavizado temporal o reglas de persistencia para evitar que ventanas aisladas activen una predicción de marcha.
-
-### Criterio operativo final
-
-Tras ampliar el dataset con más diversidad de pacientes y volver a evaluar la salida temporal, el criterio más defendible para reportar el modelo es mantener como resultado principal un **punto equilibrado** y dejar como alternativa un **modo conservador** si se quiere penalizar más las falsas alarmas.
-
-En la validación leave-one-reference-out con `CatBoost`, el mejor punto equilibrado aparece con `threshold=0.70`:
-
-* accuracy: `0.6937`
-* precision (`walking`): `0.4989`
-* recall (`walking`): `0.3971`
-* F1-score (`walking`): `0.4422`
-* falsos positivos: `688`
-
-Si se prioriza reducir más los falsos positivos, la regla temporal `threshold=0.70` + `min_run_windows=2` baja la tasa de falsas alarmas de `0.1756` a `0.1376`, aunque también reduce el recall y el F1:
-
-* accuracy: `0.7054`
-* precision (`walking`): `0.5276`
-* recall (`walking`): `0.3490`
-* F1-score (`walking`): `0.4201`
-* falsos positivos: `539`
-
-Por eso, en la documentación del proyecto se toma como referencia principal el punto equilibrado y se deja el modo conservador como configuración de explotación cuando el coste de una falsa alarma sea mayor que el de perder alguna ventana de marcha.
-
-También se ha evaluado una regla de persistencia temporal: primero se aplica el umbral sobre `walking_probability` y después solo se aceptan como marcha los bloques con al menos `N` ventanas positivas consecutivas. El barrido se ejecuta con:
-
-```bash
-poetry run python -m gait_analysis.tune_sequence_temporal_smoothing
-```
-
-La mejor combinación del barrido actual es `threshold=0.65` y `min_run_windows=2`:
-
-* accuracy: `0.6695`
-* precision (`walking`): `0.0291`
-* recall (`walking`): `0.6667`
-* F1-score (`walking`): `0.0557`
-* falsos positivos: `267`
-* matriz de confusión (`not_walking`, `walking`): `[[541, 267], [4, 8]]`
-
-Frente al umbral `0.65` sin suavizado, la regla temporal reduce los falsos positivos de `319` a `267` sin perder más verdaderos positivos. Aun así, la precisión sigue siendo limitada, por lo que este resultado debe reportarse como una mejora parcial y no como solución definitiva.
-
-Para aproximar la evaluación pedida por el tutor, también se ha construido una secuencia concatenada con segmentos de marcha y no marcha no usados de pacientes ya vistos:
-
-```bash
-poetry run python -m gait_analysis.build_stitched_sequence_evaluation
-```
-
-El script toma los segmentos válidos de `sequence_evaluation_windows.csv`, concatena sus predicciones por ventana en una línea temporal sintética y aplica la regla final `threshold=0.65`, `min_run_windows=2`. Para los segmentos de mismos pacientes disponibles actualmente:
-
-* segmentos concatenados: `4`
-* ventanas evaluadas: `388`
-* accuracy: `0.6366`
-* precision (`walking`): `0.0552`
-* recall (`walking`): `0.6667`
-* F1-score (`walking`): `0.1019`
-* matriz de confusión (`not_walking`, `walking`): `[[239, 137], [4, 8]]`
-
-Este experimento ya produce la salida temporal solicitada (`t`, etiqueta real, predicción y probabilidad), guardada en `results/stitched_sequence_predictions.csv`. Debe interpretarse con cautela porque el conjunto disponible tiene muchos más puntos de no marcha que de marcha y solo un tramo corto de marcha válido para esta prueba.
-
-Como los falsos positivos siguen siendo altos, se ha añadido un barrido específico de reglas más conservadoras:
-
-```bash
-poetry run python -m gait_analysis.tune_stitched_sequence_smoothing
-```
-
-En los segmentos concatenados de mismos pacientes, el mejor F1 sigue apareciendo con `threshold=0.65`, `min_run_windows=2`. Si se exige conservar al menos `recall >= 0.50`, la opción más conservadora es `threshold=0.65`, `min_run_windows=3`:
-
-* falsos positivos: baja de `137` a `121`
-* verdaderos positivos: baja de `8` a `6`
-* recall (`walking`): baja de `0.6667` a `0.5000`
-* F1-score (`walking`): baja de `0.1019` a `0.0863`
-* matriz de confusión (`not_walking`, `walking`): `[[255, 121], [6, 6]]`
-
-Por tanto, aumentar la persistencia temporal reduce falsos positivos, pero empieza a eliminar marcha real. Las configuraciones que dejan los falsos positivos en `0` también dejan los verdaderos positivos en `0`, por lo que no son útiles como detector de marcha.
-
-También se ha probado una regla de histéresis, con umbral alto para activar la marcha y umbral bajo para apagarla:
-
-```bash
-poetry run python -m gait_analysis.tune_stitched_sequence_hysteresis
-```
-
-El barrido muestra que, con los datos actuales, la histéresis no reduce falsos positivos mejor que la persistencia simple. El mejor F1 aparece con `enter_threshold=0.65`, `exit_threshold=0.65`, `enter_run_windows=3`, `exit_run_windows=2`:
-
-* falsos positivos: `142`
-* verdaderos positivos: `10`
-* recall (`walking`): `0.8333`
-* F1-score (`walking`): `0.1220`
-* matriz de confusión (`not_walking`, `walking`): `[[234, 142], [2, 10]]`
-
-Esta variante detecta más marcha real, pero sube los falsos positivos respecto a la configuración base (`142` frente a `137`). La opción de histéresis con menos falsos positivos y `recall >= 0.50` coincide en la práctica con la regla conservadora anterior: `121` falsos positivos y `6` verdaderos positivos.
-
-La evaluación separada en pacientes totalmente nuevos se ejecuta con:
-
-```bash
-poetry run python -m gait_analysis.build_stitched_sequence_evaluation \
-  --scope new_patient \
-  --predictions-output results/stitched_sequence_predictions_new_patient.csv \
-  --summary-output results/stitched_sequence_summary_new_patient.csv
-```
-
-Con los datos disponibles actualmente solo hay un segmento válido de paciente nuevo, y corresponde a `not_walking`; los candidatos de marcha de pacientes nuevos no tienen datos válidos de ambos pies en InfluxDB. Por tanto, esta evaluación mide de momento la tasa de falsos positivos en paciente nuevo, no la capacidad de detectar marcha en paciente nuevo:
-
-* segmentos concatenados: `1`
-* ventanas evaluadas: `432`
-* accuracy: `0.6991`
-* verdaderos negativos: `302`
-* falsos positivos: `130`
-* matriz de confusión (`not_walking`, `walking`): `[[302, 130], [0, 0]]`
-
-Con `min_run_windows=3`, los falsos positivos bajan de `130` a `102`, pero no es posible seleccionar una regla final solo con este segmento porque no contiene ningún positivo real. Las reglas que dejan `0` falsos positivos en paciente nuevo equivalen a no predecir marcha en ese tramo. Para cerrar completamente este punto faltan segmentos válidos de `walking` en pacientes nuevos.
-
-La tabla final consolidada de la parte clásica de ML y evaluación secuencial se genera con:
-
-```bash
-poetry run python -m gait_analysis.build_final_ml_sequence_summary
-```
-
-El fichero resultante es `results/final_ml_sequence_summary.csv`. La conclusión principal es que las técnicas clásicas obtienen resultados razonables en validación estratificada aleatoria, pero su rendimiento baja al usar bloques temporales y cae de forma clara al aplicarlas sobre secuencias reales mediante ventana móvil. El ajuste de umbral y la persistencia temporal reducen falsos positivos, pero no resuelven completamente la baja precisión; esto justifica pasar a modelos secuenciales, como transformers, que puedan aprovechar mejor la dependencia temporal entre ventanas.
-
-## Dataset secuencial para transformers
-
-El primer paso para los modelos tipo transformer es transformar las ventanas tabulares independientes en secuencias temporales. El dataset secuencial se genera con:
-
-```bash
-poetry run python -m gait_analysis.build_transformer_sequence_dataset
-```
-
-La configuración inicial usa secuencias de `9` ventanas consecutivas y asigna como etiqueta la ventana central. No se cruzan pacientes ni bloques separados por huecos temporales, por lo que cada secuencia pertenece a un único bloque temporal.
-
-Artefactos generados:
-
-* `salidas_test/auto_extracts/transformer_sequence_dataset_len9.npz`
-  Tensor `X` con forma `(1205, 9, 72)` y vector `y`.
-* `salidas_test/auto_extracts/transformer_sequence_dataset_len9_metadata.csv`
-  Metadatos por secuencia: referencia, bloque temporal, instante central y etiqueta.
-* `results/transformer_sequence_dataset_summary.json`
-  Resumen versionado del dataset secuencial.
-
-El resumen actual contiene `1205` secuencias: `726` de `not_walking` y `479` de `walking`. Para entrenar transformers se debe usar la columna `group` de los metadatos como unidad de validación, evitando mezclar secuencias de un mismo bloque temporal entre entrenamiento y test.
-
-El baseline inicial con transformer se entrena con:
-
-```bash
-poetry run python -m gait_analysis.train_transformer_sequence_classifier
-```
-
-El modelo usa un `TransformerEncoder` pequeño con contexto de 9 ventanas y se evalúa con Leave-One-Group-Out sobre bloques temporales. Los resultados out-of-fold actuales son:
-
-* accuracy: `0.5378`
-* precision (`walking`): `0.4470`
-* recall (`walking`): `0.6868`
-* F1-score (`walking`): `0.5416`
-* matriz de confusión (`not_walking`, `walking`): `[[319, 407], [150, 329]]`
-
-También se ha probado un barrido de umbrales sobre las probabilidades out-of-fold del transformer:
-
-```bash
-poetry run python -m gait_analysis.tune_transformer_sequence_threshold
-```
-
-El mejor F1 aparece con umbral `0.01`:
-
-* accuracy: `0.5071`
-* precision (`walking`): `0.4347`
-* recall (`walking`): `0.7996`
-* F1-score (`walking`): `0.5632`
-* matriz de confusión (`not_walking`, `walking`): `[[228, 498], [96, 383]]`
-
-Este primer transformer mejora claramente la aplicación secuencial directa del Random Forest, pero todavía no supera al Random Forest evaluado por bloques temporales (`F1 walking = 0.6079`). El barrido de umbral mejora el recall y el F1, aunque confirma que las probabilidades están mal calibradas y todavía hay muchos falsos positivos. La lectura actual es que el enfoque secuencial es viable, pero el dataset sigue siendo pequeño para entrenar modelos neuronales con buena generalización.
-
-Para reducir sobreajuste, se ha añadido una variante con early stopping usando un grupo temporal interno de validación dentro de cada fold:
-
-```bash
-poetry run python -m gait_analysis.train_transformer_sequence_classifier --validation-mode group
-```
-
-Esta variante mejora el resultado del transformer:
-
-* accuracy: `0.5983`
-* precision (`walking`): `0.4964`
-* recall (`walking`): `0.7161`
-* F1-score (`walking`): `0.5863`
-* matriz de confusión (`not_walking`, `walking`): `[[378, 348], [136, 343]]`
-
-Sigue ligeramente por debajo del Random Forest por bloques, pero reduce la distancia (`0.5863` frente a `0.6079`) y confirma que una validación interna más estricta mejora la generalización del modelo secuencial.
-
-La mejor variante actual reduce además la capacidad del modelo (`d_model=16`, `dim_feedforward=32`) y aumenta la regularización (`dropout=0.3`):
-
-```bash
-poetry run python -m gait_analysis.train_transformer_sequence_classifier \
-  --validation-mode group \
-  --d-model 16 \
-  --nhead 4 \
-  --dim-feedforward 32 \
-  --dropout 0.3
-```
-
-Resultados:
-
-* accuracy: `0.6091`
-* precision (`walking`): `0.5057`
-* recall (`walking`): `0.7349`
-* F1-score (`walking`): `0.5991`
-* matriz de confusión (`not_walking`, `walking`): `[[382, 344], [127, 352]]`
-
-Esta configuración queda muy cerca del Random Forest por bloques (`0.5991` frente a `0.6079`) y mejora al transformer anterior tanto en F1 como en precision, recall y accuracy.
-
-Se ha añadido una regularización adicional con `label_smoothing=0.05`:
-
-```bash
-poetry run python -m gait_analysis.train_transformer_sequence_classifier \
-  --validation-mode group \
-  --d-model 16 \
-  --nhead 4 \
-  --dim-feedforward 32 \
-  --dropout 0.3 \
-  --label-smoothing 0.05
-```
-
-Sin ajustar el umbral, esta variante ya supera ligeramente al Random Forest por bloques:
-
-* accuracy: `0.6133`
-* precision (`walking`): `0.5091`
-* recall (`walking`): `0.7578`
-* F1-score (`walking`): `0.6091`
-* matriz de confusión (`not_walking`, `walking`): `[[376, 350], [116, 363]]`
-
-Después, al ajustar el umbral de decisión sobre las probabilidades out-of-fold, el mejor valor aparece con `threshold=0.43`:
-
-* accuracy: `0.6133`
-* precision (`walking`): `0.5084`
-* recall (`walking`): `0.8246`
-* F1-score (`walking`): `0.6290`
-* matriz de confusión (`not_walking`, `walking`): `[[344, 382], [84, 395]]`
-
-Esta es la mejor configuración secuencial actual. Supera al Random Forest por bloques en F1 de la clase `walking`, aunque a costa de mantener un número considerable de falsos positivos.
-
-Para reducir esos falsos positivos se ha añadido un postprocesado temporal sobre las probabilidades out-of-fold del transformer:
-
-```bash
-poetry run python -m gait_analysis.tune_transformer_temporal_smoothing
-```
-
-El mejor compromiso actual aparece con `threshold=0.43` y `min_run_windows=8`:
-
-* accuracy: `0.6456`
-* precision (`walking`): `0.5385`
-* recall (`walking`): `0.7599`
-* F1-score (`walking`): `0.6303`
-* matriz de confusión (`not_walking`, `walking`): `[[414, 312], [115, 364]]`
-
-Frente al ajuste de umbral sin suavizado, los falsos positivos bajan de `382` a `312` y el F1 sube ligeramente de `0.6290` a `0.6303`. Si se prioriza todavía más reducir falsos positivos, la combinación `threshold=0.49` y `min_run_windows=10` baja los falsos positivos a `280`, con F1 `0.6162`.
-
-Para aplicar el transformer sobre tramos temporales reales, se ha entrenado además un artefacto final reutilizable:
-
-```bash
-poetry run python -m gait_analysis.train_final_transformer_sequence_model
-```
-
-La variante recomendada para inferencia raw se entrena sin `class_weight="balanced"` y sin `label_smoothing`, porque esta combinación reduce la tendencia a sobrepredecir marcha. Este comando guarda `models/final_transformer_sequence_model_unweighted_nols.pt`. Las métricas internas de este entrenamiento son altas (`F1 walking = 0.9357`), pero están calculadas sobre el mismo conjunto usado para entrenar y solo sirven como comprobación de ajuste, no como estimación de generalización.
-
-La inferencia transformer sobre una secuencia raw se ejecuta con:
-
-```bash
-poetry run python -m gait_analysis.predict_transformer_walking_sequence \
-  -q "47046344M-104" \
-  -f "2024-10-15 07:30:02" \
-  -u "2024-10-15 07:30:16"
-```
-
-La evaluación automática de los segmentos configurados se ejecuta con:
-
-```bash
-poetry run python -m gait_analysis.run_transformer_sequence_evaluation
-```
-
-Sobre los segmentos no vistos de mismos pacientes, usando el transformer sin pesos de clase, `threshold=0.43` y `min_run_windows=8`, el resultado concatenado actual es:
-
-* segmentos concatenados: `4`
-* ventanas evaluadas: `356`
-* accuracy: `0.4466`
-* precision (`walking`): `0.0199`
-* recall (`walking`): `1.0000`
-* F1-score (`walking`): `0.0390`
-* matriz de confusión (`not_walking`, `walking`): `[[155, 197], [0, 4]]`
-
-Frente al transformer con pesos balanceados, esta variante baja los falsos positivos en mismos pacientes de `213` a `197`. Al quitar además `label_smoothing`, la regla base baja a `191` falsos positivos manteniendo los `4` verdaderos positivos. En el segmento disponible de paciente nuevo, que solo contiene `not_walking`, esta variante produce `242` falsos positivos con la regla base.
-
-La mejor mejora actual no es usar el transformer de forma aislada, sino una compuerta de consenso RF + transformer. Se acepta `walking` solo si ambos modelos superan su umbral y la activación persiste temporalmente:
-
-```bash
-poetry run python -m gait_analysis.tune_transformer_rf_consensus
-```
-
-Con `transformer_threshold=0.65`, `rf_threshold=0.65` y `min_run_windows=3`, el resultado sobre los puntos comparables de mismos pacientes es:
-
-* ventanas evaluadas: `356`
-* accuracy: `0.7247`
-* precision (`walking`): `0.0300`
-* recall (`walking`): `0.7500`
-* F1-score (`walking`): `0.0577`
-* matriz de confusión (`not_walking`, `walking`): `[[255, 97], [1, 3]]`
-
-Esta compuerta reduce los falsos positivos de `191` a `97`, manteniendo `3` de `4` verdaderos positivos. En el segmento disponible de paciente nuevo, la misma regla deja `98` falsos positivos. Si se optimiza solo para ese segmento negativo, existen reglas con `0` falsos positivos, pero no son seleccionables como detector final porque no hay marcha real de paciente nuevo para medir sensibilidad.
-
-## Documentación
-
-La documentación con Sphinx está en:
+No conviene interpretar resultados de modelo si antes no existe al menos uno de estos ficheros:
 
 ```text
-docs/
+*_doctor.json
+*_raw.audit.json
+*_spectrogram.audit.json
 ```
-
-La versión HTML generada se encuentra en:
-
-```text
-docs/build/html
-```
-
-## Estado actual
-
-En el estado actual del proyecto ya se dispone de:
-
-* filtrado por paciente mediante `CodeID`
-* extracción por pie
-* espectros para acelerómetro y giroscopio
-* exportación en varios formatos
-* limpieza y normalización básica de ground truth
-* preparación de experimentos con distintas ventanas temporales
-* etiquetado temporal de espectrogramas
-* combinación de datasets etiquetados
-* transformación a formato `wide` para ML
-* limpieza de datasets `wide`
-* preparación e inspección de datasets para clasificación
-* baselines iniciales de clasificación
-* integración semiautomática con Grafana para el ground truth
-* documentación Sphinx con diagrama de arquitectura
-* alineación temporal robusta entre ambos pies, con ventanas completas y base temporal común
-
-## Mapa actual del proyecto
-
-### Ejecución principal
-
-Punto de entrada principal:
-
-* `extract_influx_hdf5.py`
-
-Módulos base del paquete:
-
-* `gait_analysis/app.py`
-* `gait_analysis/cli.py`
-* `gait_analysis/config.py`
-* `gait_analysis/flux.py`
-* `gait_analysis/influx_service.py`
-* `gait_analysis/models.py`
-* `gait_analysis/resampling.py`
-* `gait_analysis/spectrum.py`
-* `gait_analysis/time_utils.py`
-
-### Utilidades de ground truth
-
-* `gait_analysis/build_ground_truth_template.py`
-* `gait_analysis/import_ground_truth_table.py`
-* `gait_analysis/build_ground_truth_excel.py`
-* `gait_analysis/build_window_configs.py`
-* `gait_analysis/summarize_window_experiments.py`
-* `gait_analysis/label_spectrogram_with_ground_truth.py`
-
-### Utilidades de preparación de datasets
-
-* `gait_analysis/summarize_labeled_spectrogram.py`
-* `gait_analysis/combine_labeled_datasets.py`
-* `gait_analysis/build_wide_dataset.py`
-* `gait_analysis/inspect_wide_dataset.py`
-* `gait_analysis/clean_wide_dataset.py`
-* `gait_analysis/prepare_ml_dataset.py`
-* `gait_analysis/build_transformer_sequence_dataset.py`
-
-### Utilidades de baselines
-
-* `gait_analysis/run_baseline_logreg.py`
-* `gait_analysis/run_baseline_logreg_cv.py`
-* `gait_analysis/run_baseline_rf_cv.py`
-* `gait_analysis/run_baseline_grouped_cv.py`
-* `gait_analysis/run_ml_model_comparison_cv3.py`
-* `gait_analysis/train_final_model.py`
-* `gait_analysis/evaluate_final_model.py`
-* `gait_analysis/predict_walking_sequence.py`
-* `gait_analysis/predict_transformer_walking_sequence.py`
-* `gait_analysis/run_sequence_evaluation.py`
-* `gait_analysis/run_transformer_sequence_evaluation.py`
-* `gait_analysis/build_stitched_sequence_evaluation.py`
-* `gait_analysis/train_final_transformer_sequence_model.py`
-* `gait_analysis/train_transformer_sequence_classifier.py`
-* `gait_analysis/tune_stitched_sequence_hysteresis.py`
-* `gait_analysis/tune_stitched_sequence_smoothing.py`
-* `gait_analysis/tune_transformer_rf_consensus.py`
-* `gait_analysis/tune_transformer_sequence_threshold.py`
-* `gait_analysis/tune_transformer_temporal_smoothing.py`
-* `gait_analysis/write_baseline_summary.py`
-
-### Pipeline maestro
-
-* `gait_analysis/run_main_dataset_pipeline.py`
-
-Este script automatiza el flujo principal de:
-
-* extracción
-* etiquetado
-* combinación
-* paso a `wide`
-* limpieza final
-* generación del dataset binario por ventana
-
-La definición versionada de los bloques usados por el dataset principal está en:
-
-* `experiment_configs/main_dataset_windows.csv`
-
-El pipeline se regenera con:
-
-```text
-poetry run python gait_analysis/run_main_dataset_pipeline.py
-```
-
-Los baselines principales se regeneran con:
-
-```text
-poetry run python gait_analysis/run_baseline_logreg_cv.py -i salidas_test/auto_extracts/main_combined_labeled_dataset_wide_clean.parquet
-poetry run python gait_analysis/run_baseline_rf_cv.py -i salidas_test/auto_extracts/main_combined_labeled_dataset_wide_clean.parquet
-poetry run python gait_analysis/run_baseline_grouped_cv.py -i salidas_test/auto_extracts/main_binary_window_features.parquet -o salidas_test/grouped_baseline_results.csv
-```
-
-La comparativa de Random Forest, XGBoost y CatBoost con Cross Validation de 3 folds se regenera con:
-
-```text
-poetry run python gait_analysis/run_ml_model_comparison_cv3.py
-```
-
-El modelo final se entrena y guarda con:
-
-```text
-poetry run python gait_analysis/train_final_model.py
-```
-
-La evaluación reportable del modelo final se genera con:
-
-```text
-poetry run python gait_analysis/evaluate_final_model.py
-```
-
-La inferencia por ventana móvil sobre una secuencia temporal se ejecuta con:
-
-```text
-poetry run python gait_analysis/predict_walking_sequence.py -q "47046344M-104" -f "2024-10-15 07:47:57" -u "2024-10-15 07:48:44" -o salidas_test/sequence_predictions/predictions.csv
-```
-
-La evaluación automática de los segmentos configurados en `sequence_evaluation_windows.csv` se ejecuta con:
-
-```text
-poetry run python -m gait_analysis.run_sequence_evaluation --threshold 0.65
-```
-
-El barrido de umbrales sobre predicciones ya guardadas se ejecuta con:
-
-```text
-poetry run python -m gait_analysis.tune_sequence_threshold
-```
-
-El barrido de suavizado temporal por persistencia se ejecuta con:
-
-```text
-poetry run python -m gait_analysis.tune_sequence_temporal_smoothing
-```
-
-La evaluación con segmentos no vistos concatenados se ejecuta con:
-
-```text
-poetry run python -m gait_analysis.build_stitched_sequence_evaluation
-```
-
-La evaluación separada sobre pacientes nuevos se ejecuta con:
-
-```text
-poetry run python -m gait_analysis.build_stitched_sequence_evaluation --scope new_patient
-```
-
-El barrido conservador sobre la secuencia concatenada se ejecuta con:
-
-```text
-poetry run python -m gait_analysis.tune_stitched_sequence_smoothing
-```
-
-El barrido con histéresis sobre la secuencia concatenada se ejecuta con:
-
-```text
-poetry run python -m gait_analysis.tune_stitched_sequence_hysteresis
-```
-
-La tabla final consolidada de ML clásico y evaluación secuencial se genera con:
-
-```text
-poetry run python -m gait_analysis.build_final_ml_sequence_summary
-```
-
-El dataset secuencial para transformers se genera con:
-
-```text
-poetry run python -m gait_analysis.build_transformer_sequence_dataset
-```
-
-El baseline transformer se entrena y evalúa con:
-
-```text
-poetry run python -m gait_analysis.train_transformer_sequence_classifier
-```
-
-La variante transformer con validación interna por grupo se ejecuta con:
-
-```text
-poetry run python -m gait_analysis.train_transformer_sequence_classifier --validation-mode group
-```
-
-El barrido de umbrales del transformer se ejecuta con:
-
-```text
-poetry run python -m gait_analysis.tune_transformer_sequence_threshold
-```
-
-El suavizado temporal del transformer para reducir falsos positivos se ejecuta con:
-
-```text
-poetry run python -m gait_analysis.tune_transformer_temporal_smoothing
-```
-
-El transformer final para inferencia raw se entrena con:
-
-```text
-poetry run python -m gait_analysis.train_final_transformer_sequence_model
-```
-
-La evaluación transformer sobre segmentos raw configurados se ejecuta con:
-
-```text
-poetry run python -m gait_analysis.run_transformer_sequence_evaluation
-```
-
-La compuerta de consenso RF + transformer se ejecuta con:
-
-```text
-poetry run python -m gait_analysis.tune_transformer_rf_consensus
-```
-
-La tabla final versionada de resultados está en:
-
-* `results/final_baseline_results.csv`
-* `results/final_ml_sequence_summary.csv`
-
-La comparativa versionada de modelos ML con CV=3 está en:
-
-* `results/ml_model_comparison_cv3_folds.csv`
-* `results/ml_model_comparison_cv3_summary.csv`
-
-El resumen versionado del modelo final está en:
-
-* `results/final_model_summary.json`
-
-Los artefactos versionados de evaluación del modelo final están en:
-
-* `results/final_model_evaluation.json`
-* `results/final_model_grouped_cv_results.csv`
-* `results/final_model_grouped_cv_predictions.csv`
-* `results/final_model_feature_importances.csv`
-
-## Artefactos principales generados
-
-Ficheros relevantes generados actualmente en `salidas_test/` y `salidas_test/auto_extracts/`:
-
-* `salidas_test/ground_truth_clean.xlsx`
-  Ground truth limpio.
-
-* `salidas_test/ground_truth_clean_overlaps.csv`
-  Solapes temporales detectados en el ground truth.
-
-* `salidas_test/reference_coverage_summary.csv`
-  Resumen de referencias con cobertura utilizable en InfluxDB.
-
-* `salidas_test/window_experiment_summary.csv`
-  Resumen de los experimentos con distintas longitudes de ventana.
-
-* `salidas_test/auto_extracts/main_combined_labeled_dataset.parquet`
-  Dataset combinado etiquetado en formato `long`.
-
-* `salidas_test/auto_extracts/main_combined_labeled_dataset_wide.parquet`
-  Dataset en formato `wide`.
-
-* `salidas_test/auto_extracts/main_combined_labeled_dataset_wide_clean.parquet`
-  Dataset limpio en formato `wide` usado para los baselines actuales.
-
-* `salidas_test/auto_extracts/main_binary_window_features.parquet`
-  Dataset preparado para clasificación binaria, con `target=0` para `not_walking` y `target=1` para `walking`.
-
-* `salidas_test/final_baseline_results_robust_pipeline.csv`
-  Resumen final de resultados de baselines sobre la versión robusta del pipeline.
-
-* `salidas_test/grouped_baseline_results.csv`
-  Resultados por fold de la validación agrupada por bloques temporales.
-
-Ficheros versionados de referencia metodológica:
-
-* `experiment_configs/main_dataset_windows.csv`
-  Definición reproducible de los bloques temporales usados por el dataset principal.
-
-* `experiment_configs/sequence_evaluation_windows.csv`
-  Candidatos no vistos para evaluar la inferencia por ventana móvil sobre secuencias temporales. Incluye segmentos validados en InfluxDB y segmentos descartados por falta de datos o cobertura incompleta de ambos pies.
-
-* `results/final_baseline_results.csv`
-  Tabla final de resultados comparando validación estratificada aleatoria y validación agrupada por bloques temporales.
-
-* `results/final_ml_sequence_summary.csv`
-  Tabla consolidada de CV=3, validación por bloques y evaluación secuencial con postprocesado.
-
-* `results/sequence_evaluation_results.csv`
-  Métricas por segmento para la evaluación por ventana móvil.
-
-* `results/sequence_evaluation_summary.csv`
-  Métricas agregadas de la evaluación por ventana móvil.
-
-* `results/sequence_evaluation_predictions.csv`
-  Predicciones temporales agregadas con `time_center`, etiqueta real, predicción y probabilidad de marcha.
-
-* `results/sequence_threshold_sweep.csv`
-  Barrido amplio de umbrales sobre `walking_probability`.
-
-* `results/sequence_threshold_sweep_fine.csv`
-  Barrido fino alrededor del mejor umbral encontrado.
-
-* `results/sequence_temporal_smoothing_sweep.csv`
-  Barrido de reglas de persistencia temporal sobre las predicciones secuenciales.
-
-* `results/sequence_temporal_smoothing_sweep_fine.csv`
-  Barrido fino de persistencia temporal alrededor de la mejor zona encontrada.
-
-* `results/stitched_sequence_predictions.csv`
-  Secuencia concatenada de segmentos no vistos de pacientes ya conocidos, con etiqueta real, predicción final y probabilidad.
-
-* `results/stitched_sequence_summary.csv`
-  Métricas agregadas de la secuencia concatenada de pacientes ya conocidos.
-
-* `results/stitched_sequence_predictions_all_valid.csv`
-  Secuencia concatenada exploratoria con todos los segmentos válidos disponibles.
-
-* `results/stitched_sequence_summary_all_valid.csv`
-  Métricas agregadas de la secuencia concatenada exploratoria con todos los segmentos válidos disponibles.
-
-* `results/stitched_sequence_predictions_new_patient.csv`
-  Secuencia concatenada con los segmentos válidos disponibles de pacientes nuevos.
-
-* `results/stitched_sequence_summary_new_patient.csv`
-  Métricas agregadas de la evaluación separada en pacientes nuevos.
-
-* `results/stitched_sequence_predictions_conservative.csv`
-  Variante más conservadora de la secuencia concatenada de pacientes ya conocidos.
-
-* `results/stitched_sequence_summary_conservative.csv`
-  Métricas de la variante más conservadora que conserva `recall >= 0.50`.
-
-* `results/stitched_sequence_predictions_new_patient_conservative.csv`
-  Variante más conservadora de la secuencia concatenada de pacientes nuevos.
-
-* `results/stitched_sequence_summary_new_patient_conservative.csv`
-  Métricas de la variante más conservadora en pacientes nuevos.
-
-* `results/stitched_sequence_smoothing_sweep.csv`
-  Barrido conservador de umbral y persistencia temporal sobre mismos pacientes.
-
-* `results/stitched_sequence_smoothing_sweep_new_patient.csv`
-  Barrido conservador de umbral y persistencia temporal sobre pacientes nuevos.
-
-* `results/stitched_sequence_hysteresis_sweep.csv`
-  Barrido de reglas de histéresis sobre la secuencia concatenada de mismos pacientes.
-
-* `results/stitched_sequence_hysteresis_sweep_new_patient.csv`
-  Barrido de reglas de histéresis sobre los segmentos disponibles de pacientes nuevos.
-
-* `results/transformer_sequence_dataset_summary.json`
-  Resumen del dataset secuencial inicial para modelos tipo transformer.
-
-* `results/transformer_sequence_summary.json`
-  Resumen de la evaluación out-of-fold del baseline transformer.
-
-* `results/transformer_sequence_cv_results.csv`
-  Métricas por fold/bloque temporal del baseline transformer.
-
-* `results/transformer_sequence_cv_predictions.csv`
-  Predicciones out-of-fold del baseline transformer.
-
-* `results/transformer_sequence_threshold_sweep.csv`
-  Barrido amplio de umbrales sobre las probabilidades out-of-fold del transformer.
-
-* `results/transformer_sequence_threshold_sweep_fine.csv`
-  Barrido fino de umbrales del transformer en la zona de mejor F1.
-
-* `results/transformer_sequence_summary_group_val.json`
-  Resumen de la variante transformer con early stopping por grupo interno.
-
-* `results/transformer_sequence_cv_results_group_val.csv`
-  Métricas por fold de la variante transformer con validación interna.
-
-* `results/transformer_sequence_cv_predictions_group_val.csv`
-  Predicciones out-of-fold de la variante transformer con validación interna.
-
-* `results/transformer_sequence_threshold_sweep_group_val.csv`
-  Barrido de umbrales de la variante transformer con validación interna.
-
-* `results/transformer_sequence_summary_group_val_small.json`
-  Resumen de la variante transformer más pequeña y regularizada.
-
-* `results/transformer_sequence_cv_results_group_val_small.csv`
-  Métricas por fold de la variante transformer más pequeña y regularizada.
-
-* `results/transformer_sequence_cv_predictions_group_val_small.csv`
-  Predicciones out-of-fold de la variante transformer más pequeña y regularizada.
-
-* `results/transformer_sequence_threshold_sweep_group_val_small.csv`
-  Barrido de umbrales de la variante transformer más pequeña y regularizada.
-
-* `results/transformer_sequence_summary_group_val_small_ls005.json`
-  Resumen de la mejor variante transformer actual con label smoothing.
-
-* `results/transformer_sequence_cv_results_group_val_small_ls005.csv`
-  Métricas por fold de la mejor variante transformer actual.
-
-* `results/transformer_sequence_cv_predictions_group_val_small_ls005.csv`
-  Predicciones out-of-fold de la mejor variante transformer actual.
-
-* `results/transformer_sequence_threshold_sweep_group_val_small_ls005.csv`
-  Barrido amplio de umbrales de la mejor variante transformer actual.
-
-* `results/transformer_sequence_threshold_sweep_group_val_small_ls005_fine.csv`
-  Barrido fino de umbrales de la mejor variante transformer actual.
-
-* `results/transformer_temporal_smoothing_sweep.csv`
-  Barrido amplio de suavizado temporal aplicado al mejor transformer actual.
-
-* `results/transformer_temporal_smoothing_sweep_fine.csv`
-  Barrido fino de suavizado temporal aplicado al mejor transformer actual.
-
-* `models/final_transformer_sequence_model.pt`
-  Artefacto previo del transformer secuencial con pesos balanceados.
-
-* `results/final_transformer_sequence_model_summary.json`
-  Resumen del entrenamiento del transformer con pesos balanceados.
-
-* `models/final_transformer_sequence_model_unweighted.pt`
-  Artefacto previo del transformer secuencial sin pesos de clase.
-
-* `results/final_transformer_sequence_model_unweighted_summary.json`
-  Resumen del entrenamiento del transformer sin pesos de clase.
-
-* `results/transformer_raw_sequence_prediction_smoke.csv`
-  Prueba de inferencia transformer sobre un espectrograma ya extraído.
-
-* `results/transformer_sequence_eval_results.csv`
-  Métricas por segmento de la evaluación transformer sobre mismos pacientes.
-
-* `results/transformer_sequence_eval_summary.csv`
-  Métricas agregadas de la evaluación transformer sobre mismos pacientes.
-
-* `results/transformer_sequence_eval_predictions.csv`
-  Predicciones temporales transformer sobre mismos pacientes.
-
-* `results/transformer_stitched_sequence_predictions.csv`
-  Secuencia concatenada transformer de mismos pacientes con suavizado temporal.
-
-* `results/transformer_stitched_sequence_summary.csv`
-  Métricas de la secuencia concatenada transformer de mismos pacientes.
-
-* `results/transformer_sequence_eval_temporal_smoothing_sweep.csv`
-  Barrido conservador sobre las probabilidades transformer en mismos pacientes.
-
-* `results/transformer_sequence_eval_results_new_patient.csv`
-  Métricas por segmento de la evaluación transformer en paciente nuevo.
-
-* `results/transformer_sequence_eval_summary_new_patient.csv`
-  Métricas agregadas de la evaluación transformer en paciente nuevo.
-
-* `results/transformer_sequence_eval_predictions_new_patient.csv`
-  Predicciones temporales transformer en paciente nuevo.
-
-* `results/transformer_stitched_sequence_predictions_new_patient.csv`
-  Secuencia concatenada transformer del paciente nuevo disponible.
-
-* `results/transformer_stitched_sequence_summary_new_patient.csv`
-  Métricas de la secuencia concatenada transformer en paciente nuevo.
-
-* `results/transformer_sequence_eval_temporal_smoothing_sweep_new_patient.csv`
-  Barrido conservador sobre las probabilidades transformer en paciente nuevo.
-
-* `results/transformer_sequence_eval_results_unweighted.csv`
-  Métricas por segmento del transformer sin pesos sobre mismos pacientes.
-
-* `results/transformer_sequence_eval_summary_unweighted.csv`
-  Métricas agregadas del transformer sin pesos sobre mismos pacientes.
-
-* `results/transformer_sequence_eval_predictions_unweighted.csv`
-  Predicciones temporales del transformer sin pesos sobre mismos pacientes.
-
-* `results/transformer_stitched_sequence_predictions_unweighted.csv`
-  Secuencia concatenada del transformer sin pesos sobre mismos pacientes.
-
-* `results/transformer_stitched_sequence_summary_unweighted.csv`
-  Métricas de la secuencia concatenada del transformer sin pesos sobre mismos pacientes.
-
-* `results/transformer_sequence_eval_temporal_smoothing_sweep_unweighted.csv`
-  Barrido conservador del transformer sin pesos sobre mismos pacientes.
-
-* `results/transformer_sequence_eval_results_new_patient_unweighted.csv`
-  Métricas por segmento del transformer sin pesos en paciente nuevo.
-
-* `results/transformer_sequence_eval_summary_new_patient_unweighted.csv`
-  Métricas agregadas del transformer sin pesos en paciente nuevo.
-
-* `results/transformer_sequence_eval_predictions_new_patient_unweighted.csv`
-  Predicciones temporales del transformer sin pesos en paciente nuevo.
-
-* `results/transformer_stitched_sequence_predictions_new_patient_unweighted.csv`
-  Secuencia concatenada del transformer sin pesos en paciente nuevo.
-
-* `results/transformer_stitched_sequence_summary_new_patient_unweighted.csv`
-  Métricas de la secuencia concatenada del transformer sin pesos en paciente nuevo.
-
-* `results/transformer_sequence_eval_temporal_smoothing_sweep_new_patient_unweighted.csv`
-  Barrido conservador del transformer sin pesos en paciente nuevo.
-
-* `models/final_transformer_sequence_model_unweighted_nols.pt`
-  Artefacto recomendado del transformer sin pesos de clase ni label smoothing.
-
-* `results/final_transformer_sequence_model_unweighted_nols_summary.json`
-  Resumen del entrenamiento de la variante sin pesos ni label smoothing.
-
-* `results/transformer_sequence_eval_predictions_unweighted_nols.csv`
-  Predicciones temporales de la variante sin pesos ni label smoothing sobre mismos pacientes.
-
-* `results/transformer_stitched_sequence_summary_unweighted_nols.csv`
-  Métricas de la secuencia concatenada de la variante sin pesos ni label smoothing.
-
-* `results/transformer_sequence_eval_temporal_smoothing_sweep_unweighted_nols.csv`
-  Barrido conservador de la variante sin pesos ni label smoothing sobre mismos pacientes.
-
-* `results/transformer_sequence_eval_predictions_new_patient_unweighted_nols.csv`
-  Predicciones temporales de la variante sin pesos ni label smoothing en paciente nuevo.
-
-* `results/transformer_stitched_sequence_summary_new_patient_unweighted_nols.csv`
-  Métricas de la variante sin pesos ni label smoothing en paciente nuevo.
-
-* `results/transformer_sequence_eval_temporal_smoothing_sweep_new_patient_unweighted_nols.csv`
-  Barrido conservador de la variante sin pesos ni label smoothing en paciente nuevo.
-
-* `results/transformer_rf_consensus_sweep_unweighted_nols.csv`
-  Barrido de consenso RF + transformer sobre mismos pacientes.
-
-* `results/transformer_rf_consensus_predictions_unweighted_nols.csv`
-  Predicciones de consenso RF + transformer sobre mismos pacientes.
-
-* `results/transformer_rf_consensus_summary_unweighted_nols.csv`
-  Métricas de consenso RF + transformer sobre mismos pacientes.
-
-* `results/transformer_rf_consensus_sweep_new_patient_unweighted_nols.csv`
-  Barrido de consenso RF + transformer en paciente nuevo.
-
-* `results/transformer_rf_consensus_predictions_new_patient_unweighted_nols.csv`
-  Predicciones de consenso RF + transformer en paciente nuevo.
-
-* `results/transformer_rf_consensus_summary_new_patient_unweighted_nols.csv`
-  Métricas de consenso RF + transformer en paciente nuevo.
-
-## Artefactos de referencia recomendados
-
-En el estado actual del proyecto, los ficheros de referencia principales son:
-
-* `experiment_configs/main_dataset_windows.csv`
-* `experiment_configs/sequence_evaluation_windows.csv`
-* `results/final_baseline_results.csv`
-* `results/final_ml_sequence_summary.csv`
-* `results/transformer_sequence_dataset_summary.json`
-* `salidas_test/ground_truth_clean.xlsx`
-* `salidas_test/reference_coverage_summary.csv`
-* `salidas_test/window_experiment_summary.csv`
-* `salidas_test/auto_extracts/main_combined_labeled_dataset.parquet`
-* `salidas_test/auto_extracts/main_combined_labeled_dataset_wide_clean.parquet`
-* `salidas_test/auto_extracts/main_binary_window_features.parquet`
-
-## Limitaciones actuales
-
-Por ahora, las principales limitaciones detectadas son:
-
-* número limitado de referencias con cobertura válida en InfluxDB
-* dataset aún basado en pocos sujetos y bloques temporales
-* integración con Grafana todavía semiautomática, no completamente automática
-* el tratamiento horario completo entre Grafana, ground truth y pipeline aún no está unificado de forma general
-
-## Siguientes pasos
-
-Las siguientes líneas de trabajo previstas son:
-
-* ampliar el número de referencias y bloques temporales válidos
-* mejorar la cobertura útil del dataset
-* validar por sujeto cuando haya más sujetos con cobertura real
-* añadir atributos agregados por ventana además de las potencias espectrales
-* construir y comparar modelos secuenciales tipo transformer a partir de una base de datos más robusta
