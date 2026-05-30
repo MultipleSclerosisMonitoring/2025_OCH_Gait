@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+if __package__ is None or __package__ == "":
+    from pathlib import Path
+    import sys
+
+    _ROOT = Path(__file__).resolve().parents[1]
+    if str(_ROOT) not in sys.path:
+        sys.path.insert(0, str(_ROOT))
+
 from dataclasses import replace
 from datetime import timedelta
 from types import TracebackType
@@ -520,3 +528,18 @@ class ExtractApp:
     def close(self) -> None:
         """Close external resources."""
         self._influx.close()
+
+
+def main() -> None:
+    """Run the extraction app directly from this module."""
+    from gait_analysis.cli import CLI
+    from gait_analysis.config import ConfigLoader
+
+    args = CLI.parse()
+    config = ConfigLoader(args.config).load()
+    with ExtractApp(args=args, config=config) as app:
+        app.run()
+
+
+if __name__ == "__main__":
+    main()

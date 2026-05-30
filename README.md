@@ -282,6 +282,12 @@ También puede ejecutarse como módulo:
 poetry run python -m gait_analysis --mode count --config experiment_configs/config_window_1s_manual_newpatients.yaml -f "2025-07-16 10:15:00" -u "2025-07-16 11:15:00" -q "ACL1998-96"
 ```
 
+Y si se quiere ejecutar directamente el fichero interno:
+
+```bash
+poetry run python gait_analysis/app.py --mode count --config experiment_configs/config_window_1s_manual_newpatients.yaml -f "2025-07-16 10:15:00" -u "2025-07-16 11:15:00" -q "ACL1998-96"
+```
+
 ### Componentes del flujo
 
 Si el tutor quiere validar por partes, estos son los pasos y sus scripts:
