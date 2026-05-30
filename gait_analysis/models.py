@@ -140,7 +140,8 @@ class CliArgs:
         from_tz: Timezone for input datetimes if config does not provide one.
         config: YAML configuration path.
         mode: Execution mode: 'count' or 'spectrogram'.
-    verbose: Verbosity level.
+        verbose: Verbosity level.
+        dry_run: Whether to print Flux queries without contacting InfluxDB.
         core_from_time: Optional central chunk start for anchored processing.
         core_until: Optional central chunk stop for anchored processing.
         center_anchor_time: Optional first window center used to align chunks.
@@ -154,6 +155,7 @@ class CliArgs:
     config: str
     mode: str
     verbose: int
+    dry_run: bool = False
     core_from_time: Optional[str] = None
     core_until: Optional[str] = None
     center_anchor_time: Optional[str] = None

@@ -53,6 +53,40 @@ Al comparar con Grafana hay que tener en cuenta la zona horaria mostrada por la 
 
 ## Modos principales de ejecución
 
+Para una comprobación operativa breve, ver `docs/tutor_quickstart.md`.
+
+### Diagnóstico rápido con `doctor`
+
+Antes de extraer datos, el comando `doctor` valida la configuración, convierte el rango local a UTC, construye las queries Flux, prueba la conexión con InfluxDB y recomienda el siguiente paso.
+
+```bash
+poetry run python gait_analysis/doctor.py \
+-f "2026-05-05 10:25:00" \
+-u "2026-05-06 13:53:00" \
+-q "AGCHUG064-10" \
+--print-query \
+--json-output "salidas_test/AGCHUG064-10_doctor.json"
+```
+
+Si solo se quiere revisar la query sin conectar con InfluxDB:
+
+```bash
+python gait_analysis/doctor.py \
+-f "2026-05-05 10:25:00" \
+-u "2026-05-06 13:53:00" \
+-q "AGCHUG064-10" \
+--dry-run \
+--print-query
+```
+
+Los estados principales son:
+
+* `valid_both_feet`: hay datos de ambos pies e intersección temporal
+* `connection_failed`: no se ha podido abrir conexión con InfluxDB
+* `no_records`: la query no devuelve datos
+* `only_some_feet`: falta cobertura en alguno de los pies
+* `no_common_interval`: hay datos por pie, pero no se solapan
+
 ### 1. Modo `count`
 
 Se utiliza para comprobar que la extracción desde InfluxDB funciona correctamente.
@@ -106,6 +140,47 @@ poetry run python extract_influx_hdf5.py \
 -v
 ```
 
+### 3. Modo `raw`
+
+Guarda las muestras crudas recuperadas de InfluxDB, separadas por pie, sin calcular espectrogramas. Es el modo recomendado para inspeccionar visualmente si el rango temporal y la referencia contienen señal real.
+
+```bash
+poetry run python extract_influx_hdf5.py \
+-f "2026-05-05 10:25:00" \
+-u "2026-05-06 13:53:00" \
+-q "AGCHUG064-10" \
+--mode raw \
+-o "salidas_test/AGCHUG064-10_raw.csv" \
+-vv
+```
+
+Los formatos soportados son `.parquet`, `.csv` y `.xlsx`.
+
+Cada ejecución `raw` genera además un manifiesto automático junto al fichero de salida. Por ejemplo, `AGCHUG064-10_raw.csv` produce `AGCHUG064-10_raw.audit.json` con query, rango local/UTC, commit git, configuración, filas por pie y estado final.
+
+### Auditoría de cobertura InfluxDB
+
+Antes de extraer datasets largos conviene auditar la ventana. El script `gait_analysis/audit_influx_window.py` genera un CSV con conversión local/UTC, conteos por pie, mínimos/máximos temporales, intersección común y estado final (`valid_both_feet`, `no_records`, `only_some_feet`, `no_common_interval` o `connection_failed`).
+
+```bash
+poetry run python gait_analysis/audit_influx_window.py \
+-f "2026-05-05 10:25:00" \
+-u "2026-05-06 13:53:00" \
+-q "AGCHUG064-10" \
+-o "salidas_test/AGCHUG064-10_audit.csv" \
+--print-query
+```
+
+Para revisar solo la query y la conversión horaria sin conectar con InfluxDB:
+
+```bash
+python gait_analysis/audit_influx_window.py \
+-f "2026-05-05 10:25:00" \
+-u "2026-05-06 13:53:00" \
+-q "AGCHUG064-10" \
+--dry-run
+```
+
 ### Comportamiento actual del modo `spectrogram`
 
 El pipeline actual de espectrogramas trabaja de forma robusta sobre ambos pies:
@@ -119,6 +194,8 @@ El pipeline actual de espectrogramas trabaja de forma robusta sobre ambos pies:
 * emite filas con los mismos `time_center` en ambos pies
 
 Este comportamiento evita ventanas parciales al final del rango y permite comparar ambos pies sobre una base temporal emparejada.
+
+Cada ejecución `spectrogram` genera también un manifiesto `*.audit.json` junto a la salida. En caso de que no se genere parquet, el manifiesto conserva la causa (`connection_failed`, `no_common_interval`, `no_complete_windows`, `no_valid_windows`, etc.) y los contadores de ventanas descartadas cuando existan.
 
 ## Robustez de ejecución
 

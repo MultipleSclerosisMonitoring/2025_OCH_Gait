@@ -8,21 +8,20 @@ if __package__ is None or __package__ == "":
     if str(_ROOT) not in sys.path:
         sys.path.insert(0, str(_ROOT))
 
+import json
+import subprocess
 from dataclasses import replace
 from datetime import timedelta
+from pathlib import Path
 from types import TracebackType
-from typing import Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 
 from gait_analysis.flux import FluxQueryBuilder
-from gait_analysis.influx_service import InfluxService
 from gait_analysis.models import AppConfig, CliArgs
 from gait_analysis.resampling import Resampler
-from gait_analysis.spectrum import ParquetRowBuilder, PowerSpectrumEngine
 from gait_analysis.time_utils import TimeProcessor
 
 
@@ -38,7 +37,8 @@ class ExtractApp:
         """
         self._args = args
         self._config = config
-        self._influx = InfluxService(config.influx)
+        self._influx: Optional[Any] = None
+        self._last_query_error: Optional[Dict[str, str]] = None
 
     def __enter__(self) -> "ExtractApp":
         """Enter the extraction app context.
@@ -85,6 +85,170 @@ class ExtractApp:
             spec_cfg = replace(spec_cfg, **overrides)
         return spec_cfg
 
+    def _get_influx(self):
+        """Return a lazily-created InfluxDB service."""
+        if self._influx is None:
+            from gait_analysis.influx_service import InfluxService
+
+            self._influx = InfluxService(self._config.influx)
+        return self._influx
+
+    def _build_foot_flux(self, foot: str) -> tuple[str, str, str]:
+        """Build the Flux query and UTC bounds for a foot."""
+        tz = self._get_tz()
+        spec_cfg = self._effective_spectrogram_config()
+        start_iso, _ = TimeProcessor.to_utc_rfc3339_and_key(self._args.from_time, tz)
+        stop_iso, _ = TimeProcessor.to_utc_rfc3339_and_key(self._args.until, tz)
+
+        flux = FluxQueryBuilder.build(
+            bucket=self._config.influx.bucket,
+            start_iso=start_iso,
+            stop_iso=stop_iso,
+            ref_tag=self._config.ref_tag,
+            reference=self._args.reference,
+            foot_tag=self._config.foot_tag,
+            foot=foot,
+            fields=spec_cfg.signals,
+            pivot=True,
+        )
+        return flux, start_iso, stop_iso
+
+    def _git_commit(self) -> str:
+        """Return the current git commit if available."""
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except Exception:
+            return ""
+        return result.stdout.strip()
+
+    def _queries_by_foot(self) -> Dict[str, str]:
+        """Return planned Flux queries for every configured foot."""
+        spec_cfg = self._effective_spectrogram_config()
+        return {foot: self._build_foot_flux(foot)[0] for foot in spec_cfg.feet}
+
+    def _audit_json_path(self) -> Path:
+        """Return the automatic audit JSON path for the current output."""
+        output = Path(self._args.output)
+        if output.suffix:
+            return output.with_suffix(".audit.json")
+        return output.with_name(output.name + ".audit.json")
+
+    @staticmethod
+    def _json_default(value: Any) -> str:
+        """Serialize timestamp-like values for audit JSON."""
+        if hasattr(value, "isoformat"):
+            return value.isoformat()
+        return str(value)
+
+    def _write_audit_json(self, status: str, **extra: Any) -> None:
+        """Write a reproducibility manifest next to the extraction output."""
+        spec_cfg = self._effective_spectrogram_config()
+        tz = self._get_tz()
+        start_iso, _ = TimeProcessor.to_utc_rfc3339_and_key(self._args.from_time, tz)
+        stop_iso, _ = TimeProcessor.to_utc_rfc3339_and_key(self._args.until, tz)
+        manifest: Dict[str, Any] = {
+            "status": status,
+            "mode": self._args.mode,
+            "reference": self._args.reference,
+            "output": self._args.output,
+            "config": self._args.config,
+            "git_commit": self._git_commit(),
+            "from_local": self._args.from_time,
+            "until_local": self._args.until,
+            "timezone": tz,
+            "from_utc": start_iso,
+            "until_utc": stop_iso,
+            "bucket": self._config.influx.bucket,
+            "ref_tag": self._config.ref_tag,
+            "foot_tag": self._config.foot_tag,
+            "signals": list(spec_cfg.signals),
+            "feet": list(spec_cfg.feet),
+            "spectrogram": {
+                "window_s": spec_cfg.window_s,
+                "delta_t_s": spec_cfg.delta_t_s,
+                "fmax_hz": spec_cfg.fmax_hz,
+                "window_type": spec_cfg.window_type,
+                "power_scale": spec_cfg.power_scale,
+                "resample_hz": spec_cfg.resample_hz,
+                "detrend": spec_cfg.detrend,
+                "max_interpolate_gap_s": spec_cfg.max_interpolate_gap_s,
+                "min_window_completeness": spec_cfg.min_window_completeness,
+            },
+            "queries_by_foot": self._queries_by_foot(),
+        }
+        if self._last_query_error is not None:
+            manifest["query_error"] = self._last_query_error
+        manifest.update(extra)
+
+        path = self._audit_json_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(manifest, indent=2, ensure_ascii=False, default=self._json_default),
+            encoding="utf-8",
+        )
+        print(f"Audit JSON guardado en: {path}")
+
+    @staticmethod
+    def _summarize_foot_dataframe(df: pd.DataFrame, foot: str) -> Dict[str, Any]:
+        """Return row count and temporal bounds for a foot DataFrame."""
+        summary: Dict[str, Any] = {"foot": foot, "rows": int(len(df))}
+        if not df.empty and "_time" in df.columns:
+            times = pd.to_datetime(df["_time"], utc=True, format="mixed")
+            summary["min_time_utc"] = times.min()
+            summary["max_time_utc"] = times.max()
+        else:
+            summary["min_time_utc"] = ""
+            summary["max_time_utc"] = ""
+        return summary
+
+    def _print_flux_debug(self, foot: str, flux: str, start_iso: str, stop_iso: str) -> None:
+        """Print the query context for reproducibility."""
+        tz = self._get_tz()
+        print(f"[DEBUG] Query {foot}:")
+        print("Zona local usada:", tz)
+        print("Inicio local:", self._args.from_time, "-> UTC (InfluxDB):", start_iso)
+        print("Fin local:   ", self._args.until, "-> UTC (InfluxDB):", stop_iso)
+        print(flux)
+
+    def _query_influx(self, flux: str):
+        """Execute a Flux query and convert connection failures into CLI output."""
+        try:
+            self._last_query_error = None
+            return self._get_influx().query(flux)
+        except Exception as exc:
+            self._last_query_error = {
+                "type": type(exc).__name__,
+                "message": str(exc),
+            }
+            print("No se pudo consultar InfluxDB.")
+            print(f"Detalle: {type(exc).__name__}: {exc}")
+            print(
+                "Puedes usar --dry-run para validar la query y la conversión horaria "
+                "sin abrir conexión al servidor."
+            )
+            return None
+
+    def print_planned_queries(self) -> None:
+        """Print all Flux queries that would be sent to InfluxDB."""
+        spec_cfg = self._effective_spectrogram_config()
+        print("Dry run: no se consultará InfluxDB.")
+        print("Modo:", self._args.mode)
+        print("Referencia:", self._args.reference)
+        print("Bucket:", self._config.influx.bucket)
+        print("Tag referencia:", self._config.ref_tag)
+        print("Tag pie:", self._config.foot_tag)
+        print("Señales:", spec_cfg.signals)
+        print("Pies:", spec_cfg.feet)
+        print()
+        for foot in spec_cfg.feet:
+            flux, start_iso, stop_iso = self._build_foot_flux(foot)
+            self._print_flux_debug(foot, flux, start_iso, stop_iso)
+
     def run_count(self) -> None:
         """Run record counting for each configured foot."""
         tz = self._get_tz()
@@ -102,66 +266,131 @@ class ExtractApp:
             print("Ruta base HDF5 (sin pie aún):", hdf5_base + "/<Foot>")
             print()
 
-        count_fields = spec_cfg.signals
-
         for foot in spec_cfg.feet:
-            flux = FluxQueryBuilder.build(
-                bucket=self._config.influx.bucket,
-                start_iso=start_iso,
-                stop_iso=stop_iso,
-                ref_tag=self._config.ref_tag,
-                reference=self._args.reference,
-                foot_tag=self._config.foot_tag,
-                foot=foot,
-                fields=count_fields,
-                pivot=True,
-            )
+            flux, _, _ = self._build_foot_flux(foot)
 
             print(f"=== Pie: {foot} ===")
             if self._args.verbose:
                 print("Flux query enviada a Influx:")
                 print(flux)
 
-            tables = self._influx.query(flux)
-            n = self._influx.count_records(tables)
+            tables = self._query_influx(flux)
+            if tables is None:
+                return
+            n = self._get_influx().count_records(tables)
 
             print(f"Registros obtenidos de InfluxDB: {n}")
             if n == 0:
                 print("⚠️ No hay datos para este pie con esos filtros.")
             print()
 
-    def _load_foot_dataframe(self, foot: str) -> pd.DataFrame:
+    def _save_dataframe(self, df: pd.DataFrame, output: str) -> None:
+        """Save a DataFrame using an extension-derived format."""
+        output_path = output.lower()
+        if output_path.endswith(".parquet"):
+            df.to_parquet(output, index=False)
+        elif output_path.endswith(".csv"):
+            df.to_csv(output, index=False)
+        elif output_path.endswith(".xlsx"):
+            df.to_excel(output, index=False)
+        else:
+            raise ValueError(
+                "Formato de salida no soportado. Usa un fichero .parquet, .csv o .xlsx"
+            )
+
+    def run_raw(self) -> None:
+        """Extract raw samples for each configured foot and save them."""
+        tz = self._get_tz()
+        spec_cfg = self._effective_spectrogram_config()
+        start_iso, _ = TimeProcessor.to_utc_rfc3339_and_key(self._args.from_time, tz)
+        stop_iso, _ = TimeProcessor.to_utc_rfc3339_and_key(self._args.until, tz)
+
+        if self._args.verbose:
+            print("Modo raw activado")
+            print("Zona local usada:", tz)
+            print("Inicio local:", self._args.from_time, "-> UTC (InfluxDB):", start_iso)
+            print("Fin local:   ", self._args.until, "-> UTC (InfluxDB):", stop_iso)
+            print("Señales:", spec_cfg.signals)
+            print("Pies:", spec_cfg.feet)
+            print()
+
+        frames: List[pd.DataFrame] = []
+        rows_by_foot: Dict[str, int] = {}
+        foot_summaries: Dict[str, Dict[str, Any]] = {}
+        for foot in spec_cfg.feet:
+            df = self._load_foot_dataframe(foot)
+            if df is None:
+                self._write_audit_json(
+                    "connection_failed",
+                    foot_summaries=foot_summaries,
+                )
+                return
+            rows_by_foot[foot] = len(df)
+            foot_summaries[foot] = self._summarize_foot_dataframe(df, foot)
+            if df.empty:
+                print(f"⚠️ No hay datos para el pie {foot}.")
+                continue
+
+            raw_df = df.copy()
+            raw_df.insert(0, "foot", foot)
+            raw_df.insert(0, "reference", self._args.reference)
+            raw_df["from_local"] = self._args.from_time
+            raw_df["until_local"] = self._args.until
+            raw_df["timezone"] = tz
+            raw_df["from_utc"] = start_iso
+            raw_df["until_utc"] = stop_iso
+            frames.append(raw_df)
+
+        if not frames:
+            print("No se han recuperado muestras raw para ningún pie.")
+            print("Revisa el rango de fechas, la referencia y los tags configurados.")
+            self._write_audit_json(
+                "no_records",
+                foot_summaries=foot_summaries,
+                total_rows=0,
+            )
+            return
+
+        out_df = pd.concat(frames, ignore_index=True).sort_values(["_time", "foot"])
+        self._save_dataframe(out_df, self._args.output)
+
+        print(f"Raw guardado en: {self._args.output}")
+        print(f"Filas totales: {len(out_df)}")
+        for foot in spec_cfg.feet:
+            print(f"{foot}: {rows_by_foot.get(foot, 0)} filas")
+
+        missing_feet = [foot for foot in spec_cfg.feet if rows_by_foot.get(foot, 0) == 0]
+        status = "only_some_feet" if missing_feet else "valid_raw"
+        self._write_audit_json(
+            status,
+            foot_summaries=foot_summaries,
+            total_rows=int(len(out_df)),
+            missing_feet=missing_feet,
+        )
+
+    def _load_foot_dataframe(self, foot: str) -> Optional[pd.DataFrame]:
         """Load full gait interval for one foot as a DataFrame.
 
         Args:
             foot: Foot label, e.g. 'Right' or 'Left'.
 
         Returns:
-            DataFrame with '_time' and selected signal columns.
+            DataFrame with '_time' and selected signal columns, or None if the
+            external query failed.
         """
-        tz = self._get_tz()
-        spec_cfg = self._effective_spectrogram_config()
-        start_iso, _ = TimeProcessor.to_utc_rfc3339_and_key(self._args.from_time, tz)
-        stop_iso, _ = TimeProcessor.to_utc_rfc3339_and_key(self._args.until, tz)
-
-        flux = FluxQueryBuilder.build(
-            bucket=self._config.influx.bucket,
-            start_iso=start_iso,
-            stop_iso=stop_iso,
-            ref_tag=self._config.ref_tag,
-            reference=self._args.reference,
-            foot_tag=self._config.foot_tag,
-            foot=foot,
-                fields=spec_cfg.signals,
-            pivot=True,
-        )
+        flux, start_iso, stop_iso = self._build_foot_flux(foot)
 
         if self._args.verbose >= 2:
-            print(f"[DEBUG] Query {foot}:")
-            print(flux)
+            self._print_flux_debug(foot, flux, start_iso, stop_iso)
 
-        tables = self._influx.query(flux)
-        return self._influx.tables_to_dataframe(tables)
+        tables = self._query_influx(flux)
+        if tables is None:
+            return None
+        df = self._get_influx().tables_to_dataframe(tables)
+        if self._args.verbose >= 2:
+            print(f"[DEBUG] Filas recibidas {foot}: {len(df)}")
+            print()
+        return df
 
     def _build_common_time_index(
         self,
@@ -232,6 +461,8 @@ class ExtractApp:
         """
         tz = self._get_tz()
         spec_cfg = self._effective_spectrogram_config()
+        from gait_analysis.spectrum import ParquetRowBuilder, PowerSpectrumEngine
+
         spectrum_engine = PowerSpectrumEngine(spec_cfg)
         rows_right = 0
         rows_left = 0
@@ -243,7 +474,7 @@ class ExtractApp:
         chunk_size = 5000
         chunk_rows: List[Dict[str, object]] = []
         excel_rows: List[Dict[str, object]] = []
-        parquet_writer: Optional[pq.ParquetWriter] = None
+        parquet_writer = None
         hdf_initialized = False
 
         output_path = self._args.output.lower()
@@ -269,6 +500,9 @@ class ExtractApp:
 
             chunk_df = pd.DataFrame(chunk_rows)
             if output_is_parquet:
+                import pyarrow as pa
+                import pyarrow.parquet as pq
+
                 table = pa.Table.from_pandas(chunk_df, preserve_index=False)
                 if parquet_writer is None:
                     parquet_writer = pq.ParquetWriter(self._args.output, table.schema)
@@ -302,12 +536,32 @@ class ExtractApp:
 
         # 1. Load both feet first
         foot_data: Dict[str, pd.DataFrame] = {}
+        foot_summaries: Dict[str, Dict[str, Any]] = {}
         for foot in spec_cfg.feet:
             df = self._load_foot_dataframe(foot)
+            if df is None:
+                self._write_audit_json(
+                    "connection_failed",
+                    foot_summaries=foot_summaries,
+                )
+                return
+            foot_summaries[foot] = self._summarize_foot_dataframe(df, foot)
             if df.empty:
                 print(f"⚠️ No hay datos para el pie {foot}.")
-                return
+                continue
             foot_data[foot] = df
+
+        missing_feet = [
+            f for f in spec_cfg.feet
+            if foot_summaries.get(f, {}).get("rows", 0) == 0
+        ]
+        if missing_feet:
+            self._write_audit_json(
+                "no_records" if len(missing_feet) == len(spec_cfg.feet) else "only_some_feet",
+                foot_summaries=foot_summaries,
+                missing_feet=missing_feet,
+            )
+            return
 
         # 2. Resample each foot independently first
         foot_rs: Dict[str, pd.DataFrame] = {}
@@ -323,6 +577,11 @@ class ExtractApp:
             )
             if df_rs.empty:
                 print(f"⚠️ No hay datos remuestreados para el pie {foot}.")
+                self._write_audit_json(
+                    "no_resampled_data",
+                    foot_summaries=foot_summaries,
+                    failed_foot=foot,
+                )
                 return
 
             foot_rs[foot] = df_rs
@@ -348,14 +607,38 @@ class ExtractApp:
         )
 
         if stop_common <= start_common:
-            raise ValueError("No existe intersección temporal común entre ambos pies.")
+            print("No existe intersección temporal común entre ambos pies.")
+            print(
+                "Revisa el rango de fechas, la referencia y que ambos pies tengan "
+                "registros en el intervalo consultado."
+            )
+            self._write_audit_json(
+                "no_common_interval",
+                foot_summaries=foot_summaries,
+                common_start_utc=start_common,
+                common_stop_utc=stop_common,
+            )
+            return
 
         half_window = timedelta(seconds=spec_cfg.window_s / 2.0)
         start_center = start_common + half_window
         stop_center = stop_common - half_window
 
         if stop_center <= start_center:
-            raise ValueError("La intersección temporal común no permite ventanas completas.")
+            print("La intersección temporal común no permite ventanas completas.")
+            print(
+                "Amplía el rango de fechas o reduce spectrogram.window_s para poder "
+                "generar al menos una ventana completa."
+            )
+            self._write_audit_json(
+                "no_complete_windows",
+                foot_summaries=foot_summaries,
+                common_start_utc=start_common,
+                common_stop_utc=stop_common,
+                first_possible_center_utc=start_center,
+                last_possible_center_utc=stop_center,
+            )
+            return
 
         # 5. Build common time grid and reindex both feet onto the same grid
         common_index = self._build_common_time_index(
@@ -496,7 +779,26 @@ class ExtractApp:
                 print(f"  demasiado cortas: {skipped_short_window}")
                 print(f"  baja completitud: {skipped_low_completeness}")
                 print(f"  NaN residuales: {skipped_remaining_nan}")
-            raise ValueError("No se han generado filas para el parquet.")
+            print("No se han generado filas para el parquet.")
+            print(
+                "La consulta devolvió datos, pero ninguna ventana cumple los criterios "
+                "de completitud, duración e intersección entre pies."
+            )
+            self._write_audit_json(
+                "no_valid_windows",
+                foot_summaries=foot_summaries,
+                common_start_utc=start_common,
+                common_stop_utc=stop_common,
+                generated_centers=len(centers_local),
+                skipped_windows={
+                    "empty": skipped_empty_window,
+                    "short": skipped_short_window,
+                    "low_completeness": skipped_low_completeness,
+                    "remaining_nan": skipped_remaining_nan,
+                },
+                total_rows=0,
+            )
+            return
 
         if output_is_parquet:
             print(f"Parquet guardado en: {self._args.output}")
@@ -510,6 +812,24 @@ class ExtractApp:
         print(f"Filas totales: {total_rows}")
         print(f"Right arriba: {rows_right} filas")
         print(f"Left abajo: {rows_left} filas")
+        self._write_audit_json(
+            "valid_spectrogram",
+            foot_summaries=foot_summaries,
+            common_start_utc=start_common,
+            common_stop_utc=stop_common,
+            generated_centers=len(centers_local),
+            total_rows=total_rows,
+            rows_by_foot={
+                "Right": rows_right,
+                "Left": rows_left,
+            },
+            skipped_windows={
+                "empty": skipped_empty_window,
+                "short": skipped_short_window,
+                "low_completeness": skipped_low_completeness,
+                "remaining_nan": skipped_remaining_nan,
+            },
+        )
 
     def run(self) -> None:
         """Run the selected extraction mode.
@@ -518,8 +838,14 @@ class ExtractApp:
             ValueError: If the selected mode is unsupported or the spectrogram
                 workflow cannot produce valid complete windows.
         """
+        if self._args.dry_run:
+            self.print_planned_queries()
+            return
+
         if self._args.mode == "count":
             self.run_count()
+        elif self._args.mode == "raw":
+            self.run_raw()
         elif self._args.mode == "spectrogram":
             self.run_spectrogram()
         else:
@@ -527,7 +853,8 @@ class ExtractApp:
 
     def close(self) -> None:
         """Close external resources."""
-        self._influx.close()
+        if self._influx is not None:
+            self._influx.close()
 
 
 def main() -> None:

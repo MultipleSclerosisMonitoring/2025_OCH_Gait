@@ -1,11 +1,77 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-import yaml
+try:
+    import yaml
+except ModuleNotFoundError:
+    yaml = None
 
 from gait_analysis.models import AppConfig, InfluxConfig, SpectrogramConfig
+
+
+def _parse_scalar(value: str) -> Any:
+    """Parse the scalar subset used by the project config."""
+    value = value.strip()
+    if value in {"true", "True"}:
+        return True
+    if value in {"false", "False"}:
+        return False
+    if value.startswith('"') and value.endswith('"'):
+        return value[1:-1]
+    if value.startswith("'") and value.endswith("'"):
+        return value[1:-1]
+    try:
+        if "." in value:
+            return float(value)
+        return int(value)
+    except ValueError:
+        return value
+
+
+def _load_simple_yaml(path: Path) -> Dict[str, Any]:
+    """Load the small YAML subset used by .config.yaml without PyYAML."""
+    root: Dict[str, Any] = {}
+    current_section: Optional[Dict[str, Any]] = None
+    current_list_key: Optional[str] = None
+
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.split("#", 1)[0].rstrip()
+        if not line:
+            continue
+
+        indent = len(line) - len(line.lstrip(" "))
+        stripped = line.strip()
+
+        if indent == 0 and stripped.endswith(":"):
+            section_name = stripped[:-1]
+            current_section = {}
+            root[section_name] = current_section
+            current_list_key = None
+            continue
+
+        if current_section is None:
+            continue
+
+        if stripped.startswith("- ") and current_list_key is not None:
+            current_section[current_list_key].append(_parse_scalar(stripped[2:]))
+            continue
+
+        if ":" not in stripped:
+            continue
+
+        key, value = stripped.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+        if value:
+            current_section[key] = _parse_scalar(value)
+            current_list_key = None
+        else:
+            current_section[key] = []
+            current_list_key = key
+
+    return root
 
 
 class ConfigLoader:
@@ -35,8 +101,11 @@ class ConfigLoader:
                 "Revisa la ruta o pásalo con --config."
             )
 
-        with self._path.open("r", encoding="utf-8") as f:
-            cfg: Dict[str, Any] = yaml.safe_load(f) or {}
+        if yaml is not None:
+            with self._path.open("r", encoding="utf-8") as f:
+                cfg: Dict[str, Any] = yaml.safe_load(f) or {}
+        else:
+            cfg = _load_simple_yaml(self._path)
 
         influx_raw = cfg.get("influxdb") or {}
         required_influx = ["url", "org", "bucket", "token"]

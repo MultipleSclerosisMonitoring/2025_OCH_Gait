@@ -23,6 +23,7 @@ class CLI:
             description=(
                 "Extract gait data from InfluxDB. "
                 "Mode 'count' prints record counts. "
+                "Mode 'raw' saves raw sensor samples. "
                 "Mode 'spectrogram' builds a parquet file with sliding power spectra."
             )
         )
@@ -50,6 +51,7 @@ class CLI:
             default="salida.parquet",
             help=(
                 "Fichero de salida. En mode=count no se usa. "
+                "En mode=raw se soportan .parquet, .csv y .xlsx. "
                 "En mode=spectrogram se soportan .parquet, .xlsx, .h5 y .hdf5."
             ),
         )
@@ -76,6 +78,11 @@ class CLI:
             action="count",
             default=0,
             help="Aumenta el nivel de detalle (-v, -vv)",
+        )
+        p.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Muestra las consultas Flux y la conversión horaria sin conectar a InfluxDB",
         )
         p.add_argument(
             "--core-from-time",
@@ -113,9 +120,6 @@ class CLI:
 
         ns = p.parse_args(argv)
 
-        if ns.mode == "raw":
-            ns.mode = "spectrogram"
-
         return CliArgs(
             from_time=ns.from_time,
             until=ns.until,
@@ -125,6 +129,7 @@ class CLI:
             config=ns.config,
             mode=ns.mode,
             verbose=ns.verbose,
+            dry_run=ns.dry_run,
             core_from_time=ns.core_from_time,
             core_until=ns.core_until,
             center_anchor_time=ns.center_anchor_time,

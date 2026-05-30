@@ -6,7 +6,10 @@ This script supports two modes:
 1. count
    Query InfluxDB for each foot and print how many records are returned.
 
-2. spectrogram
+2. raw
+   Extract raw samples for each foot and save them without spectral processing.
+
+3. spectrogram
    Extract the full gait interval from InfluxDB, resample the selected signals,
    slide centered analysis windows, compute power spectra, keep frequencies
    below fmax_hz, and save the result to parquet.
@@ -33,4 +36,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
