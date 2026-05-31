@@ -1011,6 +1011,7 @@ Salida:
 | Plantilla corta de bloques seleccionados | `gait_analysis/build_selected_labeling_template.py` |
 | Extracción por bloques de plantilla | `gait_analysis/extract_labeling_template_blocks.py` |
 | Pre-etiquetado revisable desde raw | `gait_analysis/auto_label_from_raw_blocks.py` |
+| Aceptación de etiquetas automáticas | `gait_analysis/accept_auto_label_suggestions.py` |
 | Etiquetado | `gait_analysis/label_spectrogram_with_ground_truth.py` |
 | Combinación | `gait_analysis/combine_labeled_datasets.py` |
 | Wide | `gait_analysis/build_wide_dataset.py` |
@@ -1103,6 +1104,21 @@ poetry run python gait_analysis/auto_label_from_raw_blocks.py \
 ```
 
 Este paso calcula energía robusta de acelerómetro y giroscopio por ventanas cortas, propone segmentos `walking` y `not_walking` en `suggested_mov_type` y deja `mov_type` vacío. Así el importador no incorpora etiquetas automáticas hasta que alguien las revise en Grafana y copie solo las aceptadas a `mov_type`.
+
+Si se decide aceptar la heurística como etiquetado automático trazable:
+
+```bash
+poetry run python gait_analysis/accept_auto_label_suggestions.py \
+  --input experiment_configs/auto_label_suggestions_selected_blocks.csv \
+  --output experiment_configs/auto_labeled_selected_blocks.csv \
+  --summary experiment_configs/auto_labeled_selected_blocks_summary.md
+
+poetry run python gait_analysis/import_patient_labeling_template.py \
+  -i experiment_configs/auto_labeled_selected_blocks.csv \
+  -o experiment_configs/auto_labeled_selected_blocks_ground_truth_utc.csv
+```
+
+La salida conserva `label_quality=auto_influx_heuristic` en el CSV trazable. El fichero UTC final tiene el formato mínimo `Reference,datefrom,dateuntil,mov_type` para reentrenar o evaluar.
 
 El orquestador principal reconstruye el flujo desde un ground truth UTC:
 
