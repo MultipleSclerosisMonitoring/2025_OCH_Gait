@@ -26,6 +26,12 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Ruta del parquet preparado de salida",
     )
+    p.add_argument(
+        "--metadata-cols",
+        nargs="*",
+        default=[],
+        help="Columnas de metadatos a conservar y excluir de las features.",
+    )
     return p
 
 
@@ -37,7 +43,8 @@ def main() -> None:
 
     df = pd.read_parquet(input_path)
 
-    id_cols = ["reference", "time_center", "mov_type"]
+    metadata_cols = [c for c in args.metadata_cols if c in df.columns]
+    id_cols = ["reference", "time_center", "mov_type", *metadata_cols]
     missing_id_cols = [c for c in id_cols if c not in df.columns]
     if missing_id_cols:
         raise ValueError(f"Faltan columnas identificadoras: {missing_id_cols}")
@@ -52,7 +59,9 @@ def main() -> None:
 
     output = df[id_cols + feature_cols].copy()
     output["target"] = output["mov_type"].map(target_map).astype("int8")
-    output = output[["reference", "time_center", "mov_type", "target", *feature_cols]]
+    output = output[
+        ["reference", "time_center", "mov_type", *metadata_cols, "target", *feature_cols]
+    ]
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output.to_parquet(output_path, index=False)

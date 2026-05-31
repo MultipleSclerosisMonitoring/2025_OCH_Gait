@@ -26,6 +26,12 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Ruta al parquet wide de salida",
     )
+    p.add_argument(
+        "--metadata-cols",
+        nargs="*",
+        default=[],
+        help="Columnas de metadatos a conservar por reference/time_center/mov_type.",
+    )
     return p
 
 
@@ -38,6 +44,7 @@ def main() -> None:
     df = pd.read_parquet(input_path)
 
     p_cols = [c for c in df.columns if c.startswith("p_")]
+    metadata_cols = [c for c in args.metadata_cols if c in df.columns]
     key_cols = ["reference", "time_center", "mov_type", "foot", "signal"]
     df = (
         df.groupby(key_cols, as_index=False)[p_cols]
@@ -50,6 +57,17 @@ def main() -> None:
     )
     wide.columns = [f"{foot}_{signal}_{col}" for col, foot, signal in wide.columns]
     wide = wide.reset_index()
+    if metadata_cols:
+        metadata = (
+            pd.read_parquet(input_path, columns=["reference", "time_center", "mov_type", *metadata_cols])
+            .drop_duplicates(subset=["reference", "time_center", "mov_type"])
+        )
+        wide = wide.merge(
+            metadata,
+            on=["reference", "time_center", "mov_type"],
+            how="left",
+            validate="one_to_one",
+        )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     wide.to_parquet(output_path, index=False)

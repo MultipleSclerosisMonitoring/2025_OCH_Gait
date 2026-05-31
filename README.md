@@ -1019,6 +1019,7 @@ Salida:
 | Wide | `gait_analysis/build_wide_dataset.py` |
 | Limpieza wide | `gait_analysis/clean_wide_dataset.py` |
 | Dataset ML | `gait_analysis/prepare_ml_dataset.py` |
+| Resumen dataset ML | `gait_analysis/summarize_ml_dataset.py` |
 | Comparación de modelos | `gait_analysis/run_ml_model_comparison_cv3.py` |
 | Entrenamiento final | `gait_analysis/train_final_model.py` |
 | Evaluación final | `gait_analysis/evaluate_final_model.py` |
@@ -1143,6 +1144,31 @@ poetry run python gait_analysis/combine_with_auto_extension.py \
   --output salidas_test/data_extension_selected/main_combined_labeled_dataset_with_auto_influx_extension.parquet \
   --summary experiment_configs/combined_auto_influx_extension_summary.md
 ```
+
+Preparación del dataset combinado para ML:
+
+```bash
+poetry run python gait_analysis/build_wide_dataset.py \
+  -i salidas_test/data_extension_selected/main_combined_labeled_dataset_with_auto_influx_extension.parquet \
+  -o salidas_test/data_extension_selected/main_combined_labeled_dataset_with_auto_influx_extension_wide.parquet \
+  --metadata-cols dataset_source
+
+poetry run python gait_analysis/clean_wide_dataset.py \
+  -i salidas_test/data_extension_selected/main_combined_labeled_dataset_with_auto_influx_extension_wide.parquet \
+  -o salidas_test/data_extension_selected/main_combined_labeled_dataset_with_auto_influx_extension_wide_clean.parquet
+
+poetry run python gait_analysis/prepare_ml_dataset.py \
+  -i salidas_test/data_extension_selected/main_combined_labeled_dataset_with_auto_influx_extension_wide_clean.parquet \
+  -o salidas_test/data_extension_selected/main_binary_window_features_with_auto_influx_extension.parquet \
+  --metadata-cols dataset_source
+
+poetry run python gait_analysis/summarize_ml_dataset.py \
+  -i salidas_test/data_extension_selected/main_binary_window_features_with_auto_influx_extension.parquet \
+  -o experiment_configs/ml_dataset_auto_influx_extension_summary.md \
+  --metadata-cols dataset_source
+```
+
+`dataset_source` se conserva para auditoría y evaluación por origen, pero no entra como feature de entrenamiento.
 
 El orquestador principal reconstruye el flujo desde un ground truth UTC:
 
