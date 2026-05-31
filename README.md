@@ -1007,6 +1007,7 @@ Salida:
 | Ampliación balanceada de datos | `gait_analysis/build_balanced_data_extension.py` |
 | Plantillas de etiquetado por paciente | `gait_analysis/build_patient_labeling_templates.py` |
 | Importación de plantillas etiquetadas | `gait_analysis/import_patient_labeling_template.py` |
+| Escaneo de cobertura de plantillas | `gait_analysis/scan_labeling_template_coverage.py` |
 | Extracción por bloques de plantilla | `gait_analysis/extract_labeling_template_blocks.py` |
 | Etiquetado | `gait_analysis/label_spectrogram_with_ground_truth.py` |
 | Combinación | `gait_analysis/combine_labeled_datasets.py` |
@@ -1060,6 +1061,17 @@ poetry run python gait_analysis/import_patient_labeling_template.py \
 ```
 
 Para extraer datos de los bloques de revisión:
+
+```bash
+poetry run python gait_analysis/scan_labeling_template_coverage.py \
+  --input experiment_configs/labeling_templates/all_patients_labeling_template.csv \
+  --output experiment_configs/all_labeling_template_coverage_scan.csv \
+  --selected-output experiment_configs/all_labeling_template_selected_blocks.csv \
+  --max-valid-blocks-per-reference 5 \
+  --resume-existing
+```
+
+El CSV `all_labeling_template_selected_blocks.csv` es la cola corta de bloques con datos reales en ambos pies.
 
 ```bash
 poetry run python gait_analysis/extract_labeling_template_blocks.py \
