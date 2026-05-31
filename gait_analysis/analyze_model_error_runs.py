@@ -153,22 +153,34 @@ def summarize_runs(
         for _, run in runs:
             if run.empty:
                 continue
+            fp = int(((run["target"] == 0) & (run["prediction"] == 1)).sum())
+            fn = int(((run["target"] == 1) & (run["prediction"] == 0)).sum())
+            if fp and fn:
+                run_error_type = "mixed"
+                true_label = "mixed"
+                prediction_label = "mixed"
+            elif fp:
+                run_error_type = "fp"
+                true_label = "not_walking"
+                prediction_label = "walking"
+            else:
+                run_error_type = "fn"
+                true_label = "walking"
+                prediction_label = "not_walking"
             rows.append(
                 {
-                    "error_type": error_type,
+                    "error_type": run_error_type,
                     "reference": segment_key[0],
                     "segment": "|".join(str(value) for value in segment_key),
                     "run_start": run["time_center"].iloc[0],
                     "run_end": run["time_center"].iloc[-1],
                     "windows": int(len(run)),
+                    "fp_windows": fp,
+                    "fn_windows": fn,
                     "mean_probability": float(run[probability_col].mean()),
                     "max_probability": float(run[probability_col].max()),
-                    "true_label": "not_walking"
-                    if error_type == "fp"
-                    else "walking",
-                    "prediction_label": "walking"
-                    if error_type == "fp"
-                    else "not_walking",
+                    "true_label": true_label,
+                    "prediction_label": prediction_label,
                 }
             )
 
@@ -181,6 +193,8 @@ def summarize_runs(
                 "run_start",
                 "run_end",
                 "windows",
+                "fp_windows",
+                "fn_windows",
                 "mean_probability",
                 "max_probability",
                 "true_label",

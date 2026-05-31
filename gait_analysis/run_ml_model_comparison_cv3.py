@@ -52,6 +52,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="CSV opcional con metricas por fold y columna de origen.",
     )
     p.add_argument(
+        "--prediction-output",
+        default=None,
+        help="CSV opcional con predicciones out-of-fold.",
+    )
+    p.add_argument(
         "--fold-plan-output",
         default=None,
         help="CSV opcional con diagnostico de los folds asignados.",
@@ -93,6 +98,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["random_forest", "xgboost", "catboost"],
         default=None,
         help="Modelos a ejecutar. Por defecto ejecuta los tres.",
+    )
+    p.add_argument(
+        "--sample-weighting",
+        choices=["none", "patient", "patient_source"],
+        default="none",
+        help="Ponderacion opcional para que pacientes/origenes largos no dominen.",
     )
     return p
 
@@ -178,6 +189,41 @@ def score_predictions(y_true: pd.Series, y_pred: pd.Series) -> dict[str, float]:
             zero_division=0,
         ),
     }
+
+
+def build_sample_weights(
+    df: pd.DataFrame,
+    *,
+    mode: str,
+    group_col: str,
+    source_col: str,
+) -> pd.Series:
+    """Return row weights that equalize patients and optionally patient-source cells."""
+    if mode == "none":
+        return pd.Series(1.0, index=df.index)
+    if group_col not in df.columns:
+        raise ValueError(f"No existe group-col={group_col!r} para ponderar.")
+
+    if mode == "patient":
+        keys = [group_col]
+    elif mode == "patient_source":
+        if source_col not in df.columns:
+            raise ValueError(f"No existe source-col={source_col!r} para ponderar.")
+        keys = [group_col, source_col]
+    else:
+        raise ValueError(f"Modo de ponderacion no soportado: {mode}")
+
+    counts = df.groupby(keys, sort=False)[keys[0]].transform("size").astype(float)
+    cells = df[keys].drop_duplicates().shape[0]
+    return (len(df) / (cells * counts)).astype(float)
+
+
+def predict_walking_probability(estimator: object, X: pd.DataFrame) -> np.ndarray:
+    """Return walking probabilities when the estimator exposes them."""
+    if hasattr(estimator, "predict_proba"):
+        probabilities = estimator.predict_proba(X)
+        return np.asarray(probabilities)[:, 1].astype(float)
+    return np.full(len(X), np.nan)
 
 
 def build_summary(fold_results: pd.DataFrame) -> pd.DataFrame:
@@ -385,6 +431,7 @@ def main() -> None:
     fold_output = Path(args.fold_output)
     summary_output = Path(args.summary_output)
     source_output = Path(args.source_output) if args.source_output else None
+    prediction_output = Path(args.prediction_output) if args.prediction_output else None
     fold_plan_output = Path(args.fold_plan_output) if args.fold_plan_output else None
 
     df = pd.read_parquet(input_path)
@@ -401,6 +448,12 @@ def main() -> None:
         groups = df[args.group_col].astype(str)
     else:
         groups = pd.Series(["all"] * len(df), index=df.index)
+    sample_weights = build_sample_weights(
+        df,
+        mode=args.sample_weighting,
+        group_col=args.group_col,
+        source_col=args.source_col,
+    )
 
     fold_plan = None
     if args.cv == "balanced_grouped":
@@ -422,6 +475,7 @@ def main() -> None:
 
     rows = []
     source_rows = []
+    prediction_rows = []
 
     models = build_models(y)
     if args.models:
@@ -438,18 +492,27 @@ def main() -> None:
         ):
             print(f"Training {model_name}, fold {fold_idx}...", flush=True)
             estimator = clone(model)
-            estimator.fit(X.iloc[train_idx], y.iloc[train_idx])
+            fit_kwargs = {}
+            if args.sample_weighting != "none":
+                fit_kwargs["sample_weight"] = sample_weights.iloc[train_idx].to_numpy()
+            estimator.fit(X.iloc[train_idx], y.iloc[train_idx], **fit_kwargs)
             y_test = y.iloc[test_idx]
+            X_test = X.iloc[test_idx]
             y_pred = pd.Series(
-                estimator.predict(X.iloc[test_idx]),
+                estimator.predict(X_test),
                 index=y_test.index,
             ).astype(int)
+            y_prob = pd.Series(
+                predict_walking_probability(estimator, X_test),
+                index=y_test.index,
+            )
 
             rows.append(
                 {
                     "model": model_name,
                     "fold": fold_idx,
                     "cv": args.cv,
+                    "sample_weighting": args.sample_weighting,
                     "train_rows": int(len(train_idx)),
                     "test_rows": int(len(test_idx)),
                     "train_groups": int(groups.iloc[train_idx].nunique()),
@@ -471,6 +534,34 @@ def main() -> None:
                         source_col=source_metric_col,
                     )
                 )
+            if prediction_output is not None:
+                keep_cols = [
+                    col
+                    for col in [
+                        "reference",
+                        "time_center",
+                        "mov_type",
+                        "target",
+                        "foot",
+                        args.source_col,
+                    ]
+                    if col in df.columns
+                ]
+                fold_predictions = df.iloc[test_idx][keep_cols].copy()
+                fold_predictions["model"] = model_name
+                fold_predictions["fold"] = fold_idx
+                fold_predictions["cv"] = args.cv
+                fold_predictions["sample_weighting"] = args.sample_weighting
+                fold_predictions["train_groups"] = int(groups.iloc[train_idx].nunique())
+                fold_predictions["test_groups"] = int(groups.iloc[test_idx].nunique())
+                fold_predictions["prob_walking"] = y_prob.to_numpy()
+                fold_predictions["prediction"] = y_pred.to_numpy()
+                fold_predictions["prediction_label"] = np.where(
+                    fold_predictions["prediction"].eq(1),
+                    "walking",
+                    "not_walking",
+                )
+                prediction_rows.append(fold_predictions)
 
     fold_results = pd.DataFrame(rows)
     summary = build_summary(fold_results)
@@ -482,11 +573,18 @@ def main() -> None:
     if source_output is not None:
         source_output.parent.mkdir(parents=True, exist_ok=True)
         pd.DataFrame(source_rows).to_csv(source_output, index=False)
+    if prediction_output is not None:
+        prediction_output.parent.mkdir(parents=True, exist_ok=True)
+        pd.concat(prediction_rows, ignore_index=True).to_csv(
+            prediction_output,
+            index=False,
+        )
 
     print(f"Input parquet: {input_path}")
     print(f"Rows: {len(df)}")
     print(f"Feature columns: {len(feature_cols)}")
     print(f"CV: {args.cv}")
+    print(f"Sample weighting: {args.sample_weighting}")
     if args.cv in {"grouped", "balanced_grouped"}:
         print(f"Groups ({args.group_col}): {groups.nunique()}")
     if fold_plan_output is not None:
@@ -495,6 +593,8 @@ def main() -> None:
     print(f"Summary output: {summary_output}")
     if source_output is not None:
         print(f"Source output: {source_output}")
+    if prediction_output is not None:
+        print(f"Prediction output: {prediction_output}")
     print()
     print("Summary mean +/- sd:")
     printable = summary.copy()

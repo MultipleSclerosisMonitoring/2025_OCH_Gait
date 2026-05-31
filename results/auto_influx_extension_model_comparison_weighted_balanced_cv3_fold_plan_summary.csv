@@ -1,0 +1,4 @@
+fold,rows,target_0,target_1,source__previous_dataset,source_target__previous_dataset__0,source_target__previous_dataset__1,source__auto_influx_heuristic,source_target__auto_influx_heuristic__0,source_target__auto_influx_heuristic__1,groups
+1,6162,4128,2034,2810.0,2175.0,635.0,3352.0,1953.0,1399.0,8
+2,6302,3864,2438,3012.0,1913.0,1099.0,3290.0,1951.0,1339.0,7
+3,8960,4357,4603,6338.0,2740.0,3598.0,2622.0,1617.0,1005.0,4
