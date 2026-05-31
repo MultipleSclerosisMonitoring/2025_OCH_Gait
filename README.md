@@ -1012,6 +1012,7 @@ Salida:
 | Extracción por bloques de plantilla | `gait_analysis/extract_labeling_template_blocks.py` |
 | Pre-etiquetado revisable desde raw | `gait_analysis/auto_label_from_raw_blocks.py` |
 | Aceptación de etiquetas automáticas | `gait_analysis/accept_auto_label_suggestions.py` |
+| Etiquetado de espectrogramas por manifiesto | `gait_analysis/label_extracted_spectrogram_blocks.py` |
 | Etiquetado | `gait_analysis/label_spectrogram_with_ground_truth.py` |
 | Combinación | `gait_analysis/combine_labeled_datasets.py` |
 | Wide | `gait_analysis/build_wide_dataset.py` |
@@ -1119,6 +1120,18 @@ poetry run python gait_analysis/import_patient_labeling_template.py \
 ```
 
 La salida conserva `label_quality=auto_influx_heuristic` en el CSV trazable. El fichero UTC final tiene el formato mínimo `Reference,datefrom,dateuntil,mov_type` para reentrenar o evaluar.
+
+Para etiquetar los espectrogramas extraídos por bloques y generar un parquet combinado filtrado:
+
+```bash
+poetry run python gait_analysis/label_extracted_spectrogram_blocks.py \
+  --manifest salidas_test/data_extension_selected/spectrogram_blocks_manifest.csv \
+  --ground-truth experiment_configs/auto_labeled_selected_blocks_ground_truth_utc.csv \
+  --output-dir salidas_test/data_extension_selected/labeled_spectrogram_blocks \
+  --combined-output salidas_test/data_extension_selected/auto_labeled_selected_blocks_spectrogram.parquet \
+  --summary experiment_configs/auto_labeled_selected_blocks_spectrogram_summary.md \
+  --resume-existing
+```
 
 El orquestador principal reconstruye el flujo desde un ground truth UTC:
 
