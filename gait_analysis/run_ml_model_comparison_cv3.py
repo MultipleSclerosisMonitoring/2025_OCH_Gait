@@ -62,6 +62,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="CSV opcional con diagnostico de los folds asignados.",
     )
     p.add_argument(
+        "--fold-plan-input",
+        default=None,
+        help="CSV opcional con asignacion fija reference/fold para balanced_grouped.",
+    )
+    p.add_argument(
         "--metadata-cols",
         nargs="*",
         default=[],
@@ -433,6 +438,7 @@ def main() -> None:
     source_output = Path(args.source_output) if args.source_output else None
     prediction_output = Path(args.prediction_output) if args.prediction_output else None
     fold_plan_output = Path(args.fold_plan_output) if args.fold_plan_output else None
+    fold_plan_input = Path(args.fold_plan_input) if args.fold_plan_input else None
 
     df = pd.read_parquet(input_path)
     if "target" not in df.columns:
@@ -457,14 +463,30 @@ def main() -> None:
 
     fold_plan = None
     if args.cv == "balanced_grouped":
-        fold_plan = build_group_fold_plan(
-            df,
-            group_col=args.group_col,
-            source_col=args.source_col,
-            n_splits=3,
-            restarts=args.balanced_restarts,
-            random_state=42,
-        )
+        if fold_plan_input is not None:
+            fold_plan = pd.read_csv(fold_plan_input)
+            required_plan_cols = {args.group_col, "fold"}
+            missing_plan_cols = required_plan_cols - set(fold_plan.columns)
+            if missing_plan_cols:
+                raise ValueError(
+                    f"Faltan columnas en fold-plan-input: {sorted(missing_plan_cols)}"
+                )
+            missing_groups = sorted(set(groups) - set(fold_plan[args.group_col].astype(str)))
+            if missing_groups:
+                raise ValueError(
+                    "El fold-plan-input no cubre todos los grupos: "
+                    f"{missing_groups[:10]}"
+                )
+            fold_plan[args.group_col] = fold_plan[args.group_col].astype(str)
+        else:
+            fold_plan = build_group_fold_plan(
+                df,
+                group_col=args.group_col,
+                source_col=args.source_col,
+                n_splits=3,
+                restarts=args.balanced_restarts,
+                random_state=42,
+            )
         if fold_plan_output is not None:
             fold_plan_output.parent.mkdir(parents=True, exist_ok=True)
             fold_plan.to_csv(fold_plan_output, index=False)
@@ -587,6 +609,8 @@ def main() -> None:
     print(f"Sample weighting: {args.sample_weighting}")
     if args.cv in {"grouped", "balanced_grouped"}:
         print(f"Groups ({args.group_col}): {groups.nunique()}")
+    if fold_plan_input is not None:
+        print(f"Fold plan input: {fold_plan_input}")
     if fold_plan_output is not None:
         print(f"Fold plan output: {fold_plan_output}")
     print(f"Fold output: {fold_output}")
