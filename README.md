@@ -1015,6 +1015,7 @@ Salida:
 | Etiquetado de espectrogramas por manifiesto | `gait_analysis/label_extracted_spectrogram_blocks.py` |
 | Etiquetado | `gait_analysis/label_spectrogram_with_ground_truth.py` |
 | Combinación | `gait_analysis/combine_labeled_datasets.py` |
+| Combinación con extensión automática | `gait_analysis/combine_with_auto_extension.py` |
 | Wide | `gait_analysis/build_wide_dataset.py` |
 | Limpieza wide | `gait_analysis/clean_wide_dataset.py` |
 | Dataset ML | `gait_analysis/prepare_ml_dataset.py` |
@@ -1131,6 +1132,16 @@ poetry run python gait_analysis/label_extracted_spectrogram_blocks.py \
   --combined-output salidas_test/data_extension_selected/auto_labeled_selected_blocks_spectrogram.parquet \
   --summary experiment_configs/auto_labeled_selected_blocks_spectrogram_summary.md \
   --resume-existing
+```
+
+Para combinar ese parquet con el dataset anterior manteniendo trazabilidad de origen:
+
+```bash
+poetry run python gait_analysis/combine_with_auto_extension.py \
+  --base salidas_test/auto_extracts/main_combined_labeled_dataset_with_manual_newpatients_plus_direct_walking_plus_054walking.parquet \
+  --extension salidas_test/data_extension_selected/auto_labeled_selected_blocks_spectrogram.parquet \
+  --output salidas_test/data_extension_selected/main_combined_labeled_dataset_with_auto_influx_extension.parquet \
+  --summary experiment_configs/combined_auto_influx_extension_summary.md
 ```
 
 El orquestador principal reconstruye el flujo desde un ground truth UTC:
