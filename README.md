@@ -13,6 +13,7 @@ El proyecto cubre estos casos de uso:
 * extraer señal cruda por pie
 * generar espectrogramas por ventana temporal
 * etiquetar ventanas espectrales con ground truth
+* preparar ampliaciones balanceadas del ground truth para reentrenamiento
 * combinar varios datasets etiquetados
 * transformar datos de formato largo a formato ancho para ML
 * limpiar y preparar un dataset binario `walking` / `not_walking`
@@ -86,6 +87,7 @@ flowchart TD
 | Extracción raw | Descarga muestras crudas de InfluxDB por pie. | referencia, rango temporal, config | `.parquet`, `.csv` o `.xlsx` + `*.audit.json` |
 | Extracción spectrogram | Remuestrea, alinea ambos pies, crea ventanas completas y calcula potencia espectral. | datos InfluxDB y config espectral | espectrograma en `.parquet`, `.xlsx` o `.h5` + `*.audit.json` |
 | Ground truth | Importa, limpia o genera tablas de etiquetas temporales. | Excel/CSV de etiquetas o plantilla | ground truth normalizado |
+| Ampliación balanceada | Selecciona ventanas etiquetadas con balance por duración y diversidad de referencias. | ground truth UTC y candidatos con cobertura | ground truth balanceado + cola de etiquetado |
 | Etiquetado | Cruza cada ventana espectral con el ground truth. | espectrograma + ground truth | parquet etiquetado |
 | Combinación | Junta varios bloques etiquetados. | parquets etiquetados | parquet combinado |
 | Wide | Convierte de formato largo a una fila por `time_center`. | parquet combinado | parquet wide |
@@ -1002,6 +1004,10 @@ Salida:
 | Plantilla ground truth | `gait_analysis/build_ground_truth_template.py` |
 | Importación ground truth | `gait_analysis/import_ground_truth_table.py` |
 | Limpieza ground truth | `gait_analysis/build_ground_truth_excel.py` |
+| Ampliación balanceada de datos | `gait_analysis/build_balanced_data_extension.py` |
+| Plantillas de etiquetado por paciente | `gait_analysis/build_patient_labeling_templates.py` |
+| Importación de plantillas etiquetadas | `gait_analysis/import_patient_labeling_template.py` |
+| Extracción por bloques de plantilla | `gait_analysis/extract_labeling_template_blocks.py` |
 | Etiquetado | `gait_analysis/label_spectrogram_with_ground_truth.py` |
 | Combinación | `gait_analysis/combine_labeled_datasets.py` |
 | Wide | `gait_analysis/build_wide_dataset.py` |
@@ -1014,6 +1020,56 @@ Salida:
 | Pipeline reproducible completo | `gait_analysis/reproduce_direct_influx_pipeline.py` |
 
 ## Flujo reproducible completo
+
+Antes de reentrenar, puede generarse una propuesta balanceada de ground truth:
+
+```bash
+poetry run python gait_analysis/build_balanced_data_extension.py \
+  --inputs experiment_configs/reproducible_direct_influx_ground_truth_utc.csv \
+  --coverage-candidates experiment_configs/high_priority_new_patient_candidates_coverage.csv \
+  --output experiment_configs/balanced_data_extension_ground_truth_utc.csv \
+  --candidate-output experiment_configs/balanced_data_extension_labeling_candidates.csv \
+  --summary-output experiment_configs/balanced_data_extension_summary.md
+```
+
+Este paso:
+
+1. normaliza intervalos etiquetados `walking` / `not_walking`
+2. parte intervalos largos para que un bloque negativo no domine el entrenamiento
+3. conserva todos los intervalos `walking`
+4. selecciona `not_walking` hasta alcanzar el ratio de duración configurado
+5. genera una cola de referencias con cobertura en ambos pies que necesitan etiqueta manual en Grafana
+
+La salida `balanced_data_extension_ground_truth_utc.csv` puede usarse como entrada del pipeline reproducible.
+
+Para ampliar diversidad con nuevos pacientes, primero se generan plantillas de revisión desde las ventanas con cobertura validada:
+
+```bash
+poetry run python gait_analysis/build_patient_labeling_templates.py \
+  --input experiment_configs/balanced_data_extension_labeling_candidates.csv \
+  --output-dir experiment_configs/labeling_templates_round1 \
+  --max-patients 5
+```
+
+Después de rellenar `mov_type`, `label_from_*` y `label_until_*` en Grafana, se importan las etiquetas:
+
+```bash
+poetry run python gait_analysis/import_patient_labeling_template.py \
+  -i experiment_configs/labeling_templates_round1/all_patients_labeling_template.csv \
+  -o experiment_configs/manual_patient_ground_truth_utc.csv
+```
+
+Para extraer datos de los bloques de revisión:
+
+```bash
+poetry run python gait_analysis/extract_labeling_template_blocks.py \
+  --input experiment_configs/labeling_templates_round1/all_patients_labeling_template.csv \
+  --mode raw \
+  --first-success-per-reference \
+  --resume-existing \
+  --output-dir salidas_test/data_extension_round1/raw_blocks_first_success \
+  --manifest salidas_test/data_extension_round1/raw_blocks_first_success_manifest.csv
+```
 
 El orquestador principal reconstruye el flujo desde un ground truth UTC:
 
