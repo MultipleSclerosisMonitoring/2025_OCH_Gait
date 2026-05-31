@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
+import numpy as np
 import pandas as pd
 from catboost import CatBoostClassifier
 from sklearn.base import clone
@@ -51,6 +52,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="CSV opcional con metricas por fold y columna de origen.",
     )
     p.add_argument(
+        "--fold-plan-output",
+        default=None,
+        help="CSV opcional con diagnostico de los folds asignados.",
+    )
+    p.add_argument(
         "--metadata-cols",
         nargs="*",
         default=[],
@@ -58,14 +64,35 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--cv",
-        choices=["stratified", "grouped"],
+        choices=["stratified", "grouped", "balanced_grouped"],
         default="stratified",
-        help="Tipo de validacion cruzada: por fila estratificada o agrupada por referencia.",
+        help=(
+            "Tipo de validacion cruzada: por fila estratificada, agrupada por "
+            "referencia, o agrupada con balance por referencia/etiqueta/origen."
+        ),
     )
     p.add_argument(
         "--group-col",
         default="reference",
-        help="Columna de grupo si --cv grouped.",
+        help="Columna de grupo si --cv grouped o balanced_grouped.",
+    )
+    p.add_argument(
+        "--source-col",
+        default="dataset_source",
+        help="Columna de origen usada para balancear folds y desglosar metricas.",
+    )
+    p.add_argument(
+        "--balanced-restarts",
+        type=int,
+        default=500,
+        help="Intentos aleatorios para construir folds balanceados por grupo.",
+    )
+    p.add_argument(
+        "--models",
+        nargs="*",
+        choices=["random_forest", "xgboost", "catboost"],
+        default=None,
+        help="Modelos a ejecutar. Por defecto ejecuta los tres.",
     )
     return p
 
@@ -174,22 +201,149 @@ def build_summary(fold_results: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def build_group_fold_plan(
+    df: pd.DataFrame,
+    *,
+    group_col: str,
+    source_col: str | None,
+    n_splits: int,
+    restarts: int,
+    random_state: int,
+) -> pd.DataFrame:
+    """Assign groups to folds while balancing rows, labels and data source."""
+    stat_rows = []
+    for group_value, group_df in df.groupby(group_col, sort=False):
+        row: dict[str, object] = {
+            group_col: group_value,
+            "rows": int(len(group_df)),
+            "target_0": int((group_df["target"] == 0).sum()),
+            "target_1": int((group_df["target"] == 1).sum()),
+        }
+        if source_col and source_col in group_df.columns:
+            for source_value, source_df in group_df.groupby(source_col, sort=False):
+                safe_source = str(source_value).replace(" ", "_")
+                row[f"source__{safe_source}"] = int(len(source_df))
+                row[f"source_target__{safe_source}__0"] = int(
+                    (source_df["target"] == 0).sum()
+                )
+                row[f"source_target__{safe_source}__1"] = int(
+                    (source_df["target"] == 1).sum()
+                )
+        stat_rows.append(row)
+
+    group_stats = pd.DataFrame(stat_rows).fillna(0)
+    balance_cols = [
+        col
+        for col in group_stats.columns
+        if col != group_col and col.startswith(("rows", "target_", "source__"))
+    ]
+    source_target_cols = [
+        col for col in group_stats.columns if col.startswith("source_target__")
+    ]
+    balance_cols.extend(source_target_cols)
+    desired = group_stats[balance_cols].sum() / n_splits
+    weights = pd.Series(1.0, index=balance_cols)
+    weights["target_0"] = 2.0
+    weights["target_1"] = 2.0
+    for col in source_target_cols:
+        weights[col] = 2.0
+
+    values = group_stats[balance_cols].to_numpy(dtype=float)
+    desired_values = desired.to_numpy(dtype=float)
+    denominator = np.where(desired_values > 0, desired_values, 1.0)
+    weight_values = weights.to_numpy(dtype=float)
+
+    def objective(fold_sums: np.ndarray) -> float:
+        normalized = ((fold_sums - desired_values) / denominator) ** 2
+        return float((normalized * weight_values).sum())
+
+    rng = np.random.default_rng(random_state)
+    sorted_indices = group_stats.sort_values(
+        ["rows", "target_1", "target_0"],
+        ascending=False,
+    ).index.to_numpy()
+    best_assignment: np.ndarray | None = None
+    best_score = float("inf")
+    attempts = max(1, restarts)
+
+    for attempt in range(attempts):
+        if attempt == 0:
+            ordered_indices = sorted_indices
+        else:
+            ordered_indices = rng.permutation(len(group_stats))
+        fold_sums = np.zeros((n_splits, len(balance_cols)), dtype=float)
+        fold_group_counts = np.zeros(n_splits, dtype=float)
+        assignment = np.zeros(len(group_stats), dtype=int)
+        for group_idx in ordered_indices:
+            candidate_scores = []
+            for fold_idx in range(n_splits):
+                candidate_sums = fold_sums.copy()
+                candidate_sums[fold_idx] += values[group_idx]
+                candidate_group_counts = fold_group_counts.copy()
+                candidate_group_counts[fold_idx] += 1
+                group_penalty = (
+                    (candidate_group_counts - len(group_stats) / n_splits) ** 2
+                ).sum()
+                candidate_scores.append(
+                    (objective(candidate_sums) + 0.05 * float(group_penalty), fold_idx)
+                )
+            _, selected_fold = min(candidate_scores)
+            assignment[group_idx] = selected_fold + 1
+            fold_sums[selected_fold] += values[group_idx]
+            fold_group_counts[selected_fold] += 1
+
+        score = objective(fold_sums)
+        if score < best_score:
+            best_score = score
+            best_assignment = assignment.copy()
+
+    if best_assignment is None:
+        raise RuntimeError("No se pudo construir un plan de folds balanceados.")
+
+    plan = group_stats.copy()
+    plan["fold"] = best_assignment.astype(int)
+    return plan.sort_values(["fold", group_col]).reset_index(drop=True)
+
+
+def summarize_fold_plan(plan: pd.DataFrame, *, group_col: str) -> pd.DataFrame:
+    """Summarize group-fold assignment for audit."""
+    value_cols = [c for c in plan.columns if c not in {group_col, "fold"}]
+    numeric_cols = [c for c in value_cols if pd.api.types.is_numeric_dtype(plan[c])]
+    summary = plan.groupby("fold", as_index=False)[numeric_cols].sum()
+    summary["groups"] = plan.groupby("fold").size().to_numpy()
+    return summary
+
+
 def iter_splits(
     *,
     cv_type: str,
     X: pd.DataFrame,
     y: pd.Series,
     groups: pd.Series,
+    fold_plan: pd.DataFrame | None = None,
+    group_col: str = "reference",
 ) -> Iterable[tuple[int, object, object]]:
     """Yield fold index and train/test indices."""
-    if cv_type == "grouped":
+    if cv_type == "balanced_grouped":
+        if fold_plan is None:
+            raise ValueError("balanced_grouped requiere fold_plan.")
+        group_to_fold = fold_plan.set_index(group_col)["fold"]
+        fold_ids = sorted(group_to_fold.unique())
+        for fold_idx in fold_ids:
+            test_mask = groups.map(group_to_fold).eq(fold_idx).to_numpy()
+            test_idx = np.flatnonzero(test_mask)
+            train_idx = np.flatnonzero(~test_mask)
+            yield int(fold_idx), train_idx, test_idx
+    elif cv_type == "grouped":
         splitter = StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=42)
         split_iter = splitter.split(X, y, groups=groups)
+        for fold_idx, (train_idx, test_idx) in enumerate(split_iter, start=1):
+            yield fold_idx, train_idx, test_idx
     else:
         splitter = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
         split_iter = splitter.split(X, y)
-    for fold_idx, (train_idx, test_idx) in enumerate(split_iter, start=1):
-        yield fold_idx, train_idx, test_idx
+        for fold_idx, (train_idx, test_idx) in enumerate(split_iter, start=1):
+            yield fold_idx, train_idx, test_idx
 
 
 def score_by_source(
@@ -231,11 +385,12 @@ def main() -> None:
     fold_output = Path(args.fold_output)
     summary_output = Path(args.summary_output)
     source_output = Path(args.source_output) if args.source_output else None
+    fold_plan_output = Path(args.fold_plan_output) if args.fold_plan_output else None
 
     df = pd.read_parquet(input_path)
     if "target" not in df.columns:
         raise ValueError("El dataset debe contener la columna target.")
-    if args.cv == "grouped" and args.group_col not in df.columns:
+    if args.cv in {"grouped", "balanced_grouped"} and args.group_col not in df.columns:
         raise ValueError(f"No existe group-col={args.group_col!r} en el dataset.")
 
     metadata_cols = set(args.metadata_cols)
@@ -247,16 +402,41 @@ def main() -> None:
     else:
         groups = pd.Series(["all"] * len(df), index=df.index)
 
+    fold_plan = None
+    if args.cv == "balanced_grouped":
+        fold_plan = build_group_fold_plan(
+            df,
+            group_col=args.group_col,
+            source_col=args.source_col,
+            n_splits=3,
+            restarts=args.balanced_restarts,
+            random_state=42,
+        )
+        if fold_plan_output is not None:
+            fold_plan_output.parent.mkdir(parents=True, exist_ok=True)
+            fold_plan.to_csv(fold_plan_output, index=False)
+            summarize_fold_plan(fold_plan, group_col=args.group_col).to_csv(
+                fold_plan_output.with_name(f"{fold_plan_output.stem}_summary.csv"),
+                index=False,
+            )
+
     rows = []
     source_rows = []
 
-    for model_name, model in build_models(y).items():
+    models = build_models(y)
+    if args.models:
+        models = {name: models[name] for name in args.models}
+
+    for model_name, model in models.items():
         for fold_idx, train_idx, test_idx in iter_splits(
             cv_type=args.cv,
             X=X,
             y=y,
             groups=groups,
+            fold_plan=fold_plan,
+            group_col=args.group_col,
         ):
+            print(f"Training {model_name}, fold {fold_idx}...", flush=True)
             estimator = clone(model)
             estimator.fit(X.iloc[train_idx], y.iloc[train_idx])
             y_test = y.iloc[test_idx]
@@ -279,7 +459,8 @@ def main() -> None:
                     **score_predictions(y_test, y_pred),
                 }
             )
-            if source_output is not None and args.metadata_cols:
+            source_metric_col = args.source_col if args.source_col in df.columns else None
+            if source_output is not None and source_metric_col:
                 source_rows.extend(
                     score_by_source(
                         df_test=df.iloc[test_idx],
@@ -287,7 +468,7 @@ def main() -> None:
                         y_pred=y_pred,
                         model_name=model_name,
                         fold_idx=fold_idx,
-                        source_col=args.metadata_cols[0],
+                        source_col=source_metric_col,
                     )
                 )
 
@@ -306,8 +487,10 @@ def main() -> None:
     print(f"Rows: {len(df)}")
     print(f"Feature columns: {len(feature_cols)}")
     print(f"CV: {args.cv}")
-    if args.cv == "grouped":
+    if args.cv in {"grouped", "balanced_grouped"}:
         print(f"Groups ({args.group_col}): {groups.nunique()}")
+    if fold_plan_output is not None:
+        print(f"Fold plan output: {fold_plan_output}")
     print(f"Fold output: {fold_output}")
     print(f"Summary output: {summary_output}")
     if source_output is not None:
