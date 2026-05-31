@@ -1008,6 +1008,7 @@ Salida:
 | Plantillas de etiquetado por paciente | `gait_analysis/build_patient_labeling_templates.py` |
 | Importación de plantillas etiquetadas | `gait_analysis/import_patient_labeling_template.py` |
 | Escaneo de cobertura de plantillas | `gait_analysis/scan_labeling_template_coverage.py` |
+| Plantilla corta de bloques seleccionados | `gait_analysis/build_selected_labeling_template.py` |
 | Extracción por bloques de plantilla | `gait_analysis/extract_labeling_template_blocks.py` |
 | Etiquetado | `gait_analysis/label_spectrogram_with_ground_truth.py` |
 | Combinación | `gait_analysis/combine_labeled_datasets.py` |
@@ -1072,6 +1073,14 @@ poetry run python gait_analysis/scan_labeling_template_coverage.py \
 ```
 
 El CSV `all_labeling_template_selected_blocks.csv` es la cola corta de bloques con datos reales en ambos pies.
+
+Para convertir esa cola corta en una plantilla manual:
+
+```bash
+poetry run python gait_analysis/build_selected_labeling_template.py \
+  --input experiment_configs/all_labeling_template_selected_blocks.csv \
+  --output-dir experiment_configs/labeling_templates_selected_blocks
+```
 
 ```bash
 poetry run python gait_analysis/extract_labeling_template_blocks.py \

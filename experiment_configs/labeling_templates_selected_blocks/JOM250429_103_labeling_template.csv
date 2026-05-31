@@ -1,0 +1,4 @@
+Reference,priority,review_block,review_from_local,review_until_local,review_from_utc,review_until_utc,label_from_local,label_until_local,label_from_utc,label_until_utc,mov_type,label_quality,review_notes,right_records,left_records,total_records
+JOM250429-103,13,4,2025-04-29 19:30:00,2025-04-29 19:40:00,2025-04-29 17:30:00+00:00,2025-04-29 17:40:00+00:00,,,,,,,,124932,127872,252804
+JOM250429-103,13,5,2025-04-29 19:40:00,2025-04-29 19:50:00,2025-04-29 17:40:00+00:00,2025-04-29 17:50:00+00:00,,,,,,,,177882,178014,355896
+JOM250429-103,13,6,2025-04-29 19:50:00,2025-04-29 20:00:00,2025-04-29 17:50:00+00:00,2025-04-29 18:00:00+00:00,,,,,,,,143508,143364,286872

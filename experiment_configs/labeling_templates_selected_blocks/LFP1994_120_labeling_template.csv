@@ -1,0 +1,2 @@
+Reference,priority,review_block,review_from_local,review_until_local,review_from_utc,review_until_utc,label_from_local,label_until_local,label_from_utc,label_until_utc,mov_type,label_quality,review_notes,right_records,left_records,total_records
+LFP1994-120,16,1,2025-08-01 16:30:00,2025-08-01 16:40:00,2025-08-01 14:30:00+00:00,2025-08-01 14:40:00+00:00,,,,,,,,91458,92556,184014
