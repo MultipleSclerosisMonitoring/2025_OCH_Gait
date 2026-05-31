@@ -34,3 +34,16 @@ poetry run python gait_analysis/import_patient_labeling_template.py \
   -i experiment_configs/labeling_templates_selected_blocks/all_patients_labeling_template.csv \
   -o experiment_configs/manual_patient_ground_truth_utc.csv
 ```
+
+## Auto Suggestions From Raw Blocks
+
+After extracting raw blocks, generate review suggestions without accepting them as ground truth:
+
+```bash
+poetry run python gait_analysis/auto_label_from_raw_blocks.py \
+  --input-dir salidas_test/data_extension_round1/raw_blocks_first_success \
+  --output experiment_configs/auto_label_suggestions_round1.csv \
+  --summary experiment_configs/auto_label_suggestions_round1_summary.md
+```
+
+The output fills `suggested_mov_type` and keeps `mov_type` empty. Review each interval in Grafana, copy only accepted labels into `mov_type`, then import the reviewed CSV with `import_patient_labeling_template.py`.

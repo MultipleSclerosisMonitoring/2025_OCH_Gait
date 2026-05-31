@@ -1010,6 +1010,7 @@ Salida:
 | Escaneo de cobertura de plantillas | `gait_analysis/scan_labeling_template_coverage.py` |
 | Plantilla corta de bloques seleccionados | `gait_analysis/build_selected_labeling_template.py` |
 | Extracción por bloques de plantilla | `gait_analysis/extract_labeling_template_blocks.py` |
+| Pre-etiquetado revisable desde raw | `gait_analysis/auto_label_from_raw_blocks.py` |
 | Etiquetado | `gait_analysis/label_spectrogram_with_ground_truth.py` |
 | Combinación | `gait_analysis/combine_labeled_datasets.py` |
 | Wide | `gait_analysis/build_wide_dataset.py` |
@@ -1091,6 +1092,17 @@ poetry run python gait_analysis/extract_labeling_template_blocks.py \
   --output-dir salidas_test/data_extension_round1/raw_blocks_first_success \
   --manifest salidas_test/data_extension_round1/raw_blocks_first_success_manifest.csv
 ```
+
+Con esos parquets raw se puede generar un pre-etiquetado revisable por energía de movimiento:
+
+```bash
+poetry run python gait_analysis/auto_label_from_raw_blocks.py \
+  --input-dir salidas_test/data_extension_round1/raw_blocks_first_success \
+  --output experiment_configs/auto_label_suggestions_round1.csv \
+  --summary experiment_configs/auto_label_suggestions_round1_summary.md
+```
+
+Este paso calcula energía robusta de acelerómetro y giroscopio por ventanas cortas, propone segmentos `walking` y `not_walking` en `suggested_mov_type` y deja `mov_type` vacío. Así el importador no incorpora etiquetas automáticas hasta que alguien las revise en Grafana y copie solo las aceptadas a `mov_type`.
 
 El orquestador principal reconstruye el flujo desde un ground truth UTC:
 
