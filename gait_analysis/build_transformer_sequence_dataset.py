@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from gait_analysis.run_baseline_grouped_cv import add_temporal_groups, get_feature_columns
+from gait_analysis.run_baseline_grouped_cv import add_temporal_groups
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -64,6 +64,20 @@ def validate_sequence_length(sequence_length: int) -> None:
         raise ValueError("--sequence-length debe ser al menos 3")
     if sequence_length % 2 == 0:
         raise ValueError("--sequence-length debe ser impar para etiquetar el centro")
+
+
+def get_sequence_feature_columns(df: pd.DataFrame) -> list[str]:
+    """Return numeric feature columns suitable for transformer sequences."""
+    excluded = {
+        "reference",
+        "time_center",
+        "mov_type",
+        "target",
+        "block_id",
+        "group",
+    }
+    numeric_cols = df.select_dtypes(include=["number", "bool"]).columns
+    return [c for c in numeric_cols if c not in excluded]
 
 
 def build_sequences(
@@ -167,7 +181,7 @@ def main() -> None:
         raise ValueError("El dataset de entrada debe contener la columna target.")
 
     df = add_temporal_groups(df, gap_seconds=args.gap_seconds)
-    feature_cols = get_feature_columns(df)
+    feature_cols = get_sequence_feature_columns(df)
     X, y, metadata = build_sequences(
         df=df,
         feature_cols=feature_cols,

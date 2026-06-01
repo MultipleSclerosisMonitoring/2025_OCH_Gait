@@ -91,6 +91,7 @@ def main() -> None:
         validation_mode="none",
         label_smoothing=args.label_smoothing,
         weight_decay=args.weight_decay,
+        embargo_seconds=0.0,
     )
     set_seed(config.seed)
 
