@@ -35,6 +35,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="NPZ secuencial generado para transformers",
     )
     p.add_argument(
+        "--validation-input",
+        default=None,
+        help="NPZ opcional reservado para calibracion y parada temprana",
+    )
+    p.add_argument(
         "-o",
         "--output",
         default="models/final_transformer_sequence_model_unweighted_nols.pt",
@@ -98,14 +103,38 @@ def main() -> None:
     input_path = Path(args.input)
     X, y, metadata = load_sequence_dataset(input_path)
     feature_columns = load_feature_columns(input_path)
-    mean = X.mean(axis=(0, 1), keepdims=True)
-    std = X.std(axis=(0, 1), keepdims=True)
-    std = np.where(std < 1e-6, 1.0, std)
-    X_train, _ = normalize_train_test(X, X)
+    validation_path = Path(args.validation_input) if args.validation_input else None
+    if validation_path is not None:
+        X_val, y_val, validation_metadata = load_sequence_dataset(validation_path)
+        validation_feature_columns = load_feature_columns(validation_path)
+        if validation_feature_columns != feature_columns:
+            raise ValueError(
+                "El dataset de validacion no comparte las mismas columnas de features."
+            )
+    else:
+        X_val = y_val = validation_metadata = None
 
-    model, train_loss, epochs_used = train_one_fold(X_train, y, config)
+    X_train = X
+    if X_val is not None and y_val is not None:
+        X_train, X_val = normalize_train_test(X, X_val)
+    else:
+        X_train, _ = normalize_train_test(X, X)
+
+    model, train_loss, epochs_used = train_one_fold(
+        X_train,
+        y,
+        config,
+        X_val=X_val,
+        y_val=y_val,
+    )
     y_pred, walking_probability = predict(model, X_train, config.batch_size)
     metrics = score_predictions(y, y_pred)
+    if X_val is not None and y_val is not None:
+        y_val_pred, val_probability = predict(model, X_val, config.batch_size)
+        val_metrics = score_predictions(y_val, y_val_pred)
+    else:
+        y_val_pred = val_probability = None
+        val_metrics = None
 
     output = Path(args.output)
     summary_output = Path(args.summary_output)
@@ -117,8 +146,12 @@ def main() -> None:
         "feature_columns": feature_columns,
         "sequence_length": int(X.shape[1]),
         "input_dim": int(X.shape[2]),
-        "normalization_mean": mean.astype(np.float32),
-        "normalization_std": std.astype(np.float32),
+        "normalization_mean": X.mean(axis=(0, 1), keepdims=True).astype(np.float32),
+        "normalization_std": np.where(
+            X.std(axis=(0, 1), keepdims=True) < 1e-6,
+            1.0,
+            X.std(axis=(0, 1), keepdims=True),
+        ).astype(np.float32),
         "config": asdict(config),
         "class_labels": {0: "not_walking", 1: "walking"},
     }
@@ -148,6 +181,23 @@ def main() -> None:
             "usar solo como comprobación de ajuste, no como generalización."
         ),
     }
+    if validation_path is not None and y_val is not None and val_metrics is not None:
+        summary["validation_input"] = str(validation_path)
+        summary["validation_rows"] = int(len(y_val))
+        summary["validation_class_counts"] = {
+            "not_walking": int((y_val == 0).sum()),
+            "walking": int((y_val == 1).sum()),
+        }
+        summary["validation_references"] = {
+            str(k): int(v)
+            for k, v in validation_metadata["reference"].value_counts().sort_index().to_dict().items()
+        }
+        summary["validation_metrics"] = {k: float(v) for k, v in val_metrics.items()}
+        summary["validation_probability_mean"] = float(pd.Series(val_probability).mean())
+        summary["note"] = (
+            "Métricas de entrenamiento sobre el conjunto completo de entrenamiento "
+            "y métricas de validacion sobre un split reservado de calibracion."
+        )
     summary_output.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
     print(f"Input: {input_path}")

@@ -160,7 +160,11 @@ def main() -> None:
         predictions = exclude_predictions_by_interval(predictions, exclusions)
     if "center_time" not in predictions.columns and "time_center" in predictions.columns:
         predictions["center_time"] = predictions["time_center"]
-    predictions["center_time"] = pd.to_datetime(predictions["center_time"], utc=True)
+    predictions["center_time"] = pd.to_datetime(
+        predictions["center_time"],
+        utc=True,
+        format="mixed",
+    )
     if "group" not in predictions.columns:
         required = ["reference", "segment_from_time", "segment_until_time"]
         missing = [col for col in required if col not in predictions.columns]

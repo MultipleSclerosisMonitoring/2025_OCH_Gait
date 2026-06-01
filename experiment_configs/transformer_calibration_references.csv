@@ -1,0 +1,4 @@
+reference,reason
+47046344M-104,dominant false-positive and mixed same-patient reference
+05447093A-110,strong movement-heavy reference with external false positives
+02548893X-118,clean difficult not_walking reference

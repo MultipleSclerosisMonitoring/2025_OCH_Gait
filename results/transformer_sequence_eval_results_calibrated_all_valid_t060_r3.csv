@@ -1,0 +1,6 @@
+Reference,from_time,until_time,expected_content,seen_patient,prediction_file,rows,valid_rows,accuracy,precision_walking,recall_walking,f1_walking,tn,fp,fn,tp
+47046344M-104,2024-10-15 07:30:02,2024-10-15 07:30:16,walking,True,salidas_test/transformer_sequence_predictions/47046344M_104_20241015_073002_20241015_073016_transformer_predictions.csv,4,4,0.75,1.0,0.75,0.8571428571428571,0,0,1,3
+47046344M-104,2024-10-15 07:41:10,2024-10-15 07:43:24,not_walking,True,salidas_test/transformer_sequence_predictions/47046344M_104_20241015_074110_20241015_074324_transformer_predictions.csv,124,124,0.8145161290322581,0.0,0.0,0.0,101,23,0,0
+47046344M-104,2024-10-15 07:35:38,2024-10-15 07:37:09,not_walking,True,salidas_test/transformer_sequence_predictions/47046344M_104_20241015_073538_20241015_073709_transformer_predictions.csv,81,81,0.9506172839506173,0.0,0.0,0.0,77,4,0,0
+02548893X-118,2025-02-28 09:59:46,2025-02-28 10:02:23,not_walking,True,salidas_test/transformer_sequence_predictions/02548893X_118_20250228_095946_20250228_100223_transformer_predictions.csv,147,147,1.0,0.0,0.0,0.0,147,0,0,0
+05447093A-110,2024-05-09 10:26:46,2024-05-09 10:34:00,not_walking,False,salidas_test/transformer_sequence_predictions/05447093A_110_20240509_102646_20240509_103400_transformer_predictions.csv,424,424,0.7382075471698113,0.0,0.0,0.0,313,111,0,0
