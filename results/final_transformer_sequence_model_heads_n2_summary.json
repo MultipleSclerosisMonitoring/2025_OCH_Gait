@@ -1,0 +1,95 @@
+{
+  "input": "salidas_test/new_influx_confirmed_spectrograms/transformer_sequence_dataset_len9_new_influx_confirmed.npz",
+  "output": "models/final_transformer_sequence_model_heads_n2.pt",
+  "rows": 16583,
+  "sequence_shape": [
+    16583,
+    9,
+    72
+  ],
+  "feature_columns": 72,
+  "class_counts": {
+    "not_walking": 8824,
+    "walking": 7759
+  },
+  "references": {
+    "02548893X-118": 55,
+    "04845288Q-121": 426,
+    "05447093A-110": 475,
+    "330034-32": 198,
+    "47046344M-104": 584,
+    "54217882M-109": 161,
+    "663495-44": 71,
+    "77370299R-115": 408,
+    "AAMALMHUG057-66": 397,
+    "ACL1998-96": 4689,
+    "AEMDHUG060-70": 1135,
+    "AGCHUG064-10": 2165,
+    "AMGHUG014-3": 478,
+    "CHIHUG033-15": 203,
+    "IECHUG029-9": 313,
+    "JOM250427-105": 481,
+    "JOM250429-103": 274,
+    "LFCMHUG070-78": 149,
+    "LFP1994-120": 48,
+    "MGM-202406-79": 753,
+    "TABUENCA01-45": 1230,
+    "VCLHUG026-16": 895,
+    "VLGHUG049-29": 594,
+    "X8439657Z-23": 401
+  },
+  "train_loss": 0.7684673600726657,
+  "epochs_used": 9,
+  "train_metrics": {
+    "accuracy": 0.7628897063257553,
+    "precision_walking": 0.7399373040752351,
+    "recall_walking": 0.7605361515659235,
+    "f1_walking": 0.7500953349434346,
+    "tn": 6750.0,
+    "fp": 2074.0,
+    "fn": 1858.0,
+    "tp": 5901.0
+  },
+  "train_probability_mean": 0.5098485946655273,
+  "config": {
+    "epochs": 40,
+    "batch_size": 128,
+    "learning_rate": 0.001,
+    "d_model": 16,
+    "nhead": 2,
+    "num_layers": 1,
+    "dim_feedforward": 32,
+    "dropout": 0.3,
+    "patience": 8,
+    "seed": 42,
+    "class_weight_mode": "balanced",
+    "pooling": "center",
+    "validation_mode": "none",
+    "label_smoothing": 0.05,
+    "weight_decay": 0.001,
+    "embargo_seconds": 0.0
+  },
+  "note": "M\u00e9tricas de entrenamiento sobre el conjunto completo de entrenamiento y m\u00e9tricas de validacion sobre un split reservado de calibracion.",
+  "validation_input": "salidas_test/new_influx_confirmed_spectrograms/transformer_sequence_dataset_len9_new_influx_confirmed_calibration.npz",
+  "validation_rows": 1114,
+  "validation_class_counts": {
+    "not_walking": 742,
+    "walking": 372
+  },
+  "validation_references": {
+    "02548893X-118": 55,
+    "05447093A-110": 475,
+    "47046344M-104": 584
+  },
+  "validation_metrics": {
+    "accuracy": 0.6032315978456014,
+    "precision_walking": 0.4074074074074074,
+    "recall_walking": 0.41397849462365593,
+    "f1_walking": 0.4106666666666666,
+    "tn": 518.0,
+    "fp": 224.0,
+    "fn": 218.0,
+    "tp": 154.0
+  },
+  "validation_probability_mean": 0.4188419580459595
+}
