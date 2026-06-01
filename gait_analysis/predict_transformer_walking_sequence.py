@@ -17,9 +17,7 @@ from gait_analysis.predict_walking_sequence import (
     make_block_id,
     run_spectrogram_extraction,
 )
-from gait_analysis.train_transformer_sequence_classifier import (
-    SequenceTransformerClassifier,
-)
+from gait_analysis.transformer_sequence_core import SequenceTransformerClassifier
 
 
 def build_parser() -> argparse.ArgumentParser:

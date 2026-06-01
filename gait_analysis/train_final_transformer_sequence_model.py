@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-from gait_analysis.train_transformer_sequence_classifier import (
+from gait_analysis.transformer_sequence_core import (
     TrainConfig,
     load_sequence_dataset,
     normalize_train_test,
