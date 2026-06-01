@@ -14,7 +14,7 @@ La columna `suggested_mov_type` contiene la sugerencia heuristica. `mov_type` se
 | AAMALMHUG057-66 | not_walking | 3 | 113.0 |
 | AAMALMHUG057-66 | walking | 3 | 344.0 |
 | CHIHUG033-15 | not_walking | 3 | 195.0 |
-| CHIHUG033-15 | walking | 3 | 283.0 |
+| CHIHUG033-15 | walking | 3 | 69.0 |
 | IECHUG029-9 | not_walking | 3 | 253.0 |
 | IECHUG029-9 | walking | 3 | 112.0 |
 | LFCMHUG070-78 | not_walking | 3 | 58.0 |
@@ -39,6 +39,6 @@ La columna `suggested_mov_type` contiene la sugerencia heuristica. `mov_type` se
 
 ## Criterio
 
-- `walking`: se priorizan segmentos largos con mayor energia de acelerometro/giroscopio.
-- `not_walking`: se priorizan segmentos largos con menor energia media.
+- `walking`: se priorizan segmentos largos con mayor energia de acelerometro/giroscopio y cobertura bilateral.
+- `not_walking`: se priorizan segmentos largos con menor energia media y cobertura bilateral.
 - Maximo 3 segmentos por referencia y clase para que la revision sea manejable.
