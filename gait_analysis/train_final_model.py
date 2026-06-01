@@ -102,6 +102,13 @@ def build_model(
     )
 
 
+def get_feature_columns(df: pd.DataFrame) -> list[str]:
+    """Return numeric feature columns excluding identifiers and text metadata."""
+    excluded = set(ID_COLS)
+    numeric_cols = df.select_dtypes(include=["number", "bool"]).columns
+    return [col for col in numeric_cols if col not in excluded]
+
+
 def main() -> None:
     """Train the final model on all prepared rows and save model plus metadata."""
     args = build_parser().parse_args()
@@ -123,7 +130,7 @@ def main() -> None:
             f"{len(target_mismatches)} filas."
         )
 
-    feature_cols = [c for c in df.columns if c not in ID_COLS]
+    feature_cols = get_feature_columns(df)
     if not feature_cols:
         raise ValueError("No se han encontrado columnas de atributos.")
 
