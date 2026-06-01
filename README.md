@@ -333,6 +333,8 @@ sequenceDiagram
 
 ## Modelo de datos
 
+El modelo de datos del repositorio separa claramente la señal cruda, las ventanas espectrales intermedias y el dataset final para clasificación. Esa separación permite auditar cada etapa sin mezclar extracción, etiquetado y modelado.
+
 ### Entrada desde InfluxDB
 
 El pipeline principal espera:
@@ -358,6 +360,16 @@ La extracción raw añade metadatos de trazabilidad:
 * `timezone`
 * `from_utc`
 * `until_utc`
+
+### Trazabilidad
+
+Cada salida relevante se guarda con metadatos para poder reproducirla después:
+
+* referencia y rango temporal usado
+* configuración aplicada
+* pie o señal procesada
+* commit git activo
+* motivo de descarte o conteos de filas, cuando corresponde
 
 ### Salida spectrogram
 
@@ -528,7 +540,7 @@ Responsabilidades principales:
 | `Doctor` | Ejecutar diagnóstico operativo de una ventana antes de extraer datos. |
 | `AuditInfluxWindow` | Generar auditoría de cobertura por pie e intersección temporal. |
 
-## Modelado
+## Modelado y evaluación
 
 El repositorio contempla dos familias de modelos:
 
@@ -638,6 +650,21 @@ Salida:
 
 * `joblib` con el modelo entrenado
 * JSON con resumen del entrenamiento, columnas usadas y configuración
+
+### Comparativa externa de referencia
+
+El repositorio incluye una comparación externa sobre ventanas fijadas en `experiment_configs/sequence_evaluation_windows.csv`. Esa comparación sirve como referencia operativa para decidir el baseline actual.
+
+Resumen de esa comparación:
+
+| Modelo | F1 walking | FP |
+| --- | ---: | ---: |
+| Random Forest | 0.0406 | 181 |
+| XGBoost | 0.0319 | 173 |
+| CatBoost | 0.0481 | 434 |
+| Transformer | 0.0899 | 81 |
+
+La tabla completa y los ficheros de evaluación quedan en `results/sequence_model_external_comparison_summary.md`.
 
 ### Evaluación del modelo clásico final
 
@@ -1262,7 +1289,7 @@ Quedan líneas de trabajo abiertas:
 * consolidar una interfaz única para ejecutar auditoría por lotes sobre muchas ventanas
 * permitir generar espectrogramas desde un raw cacheado sin volver a consultar InfluxDB
 * ampliar datos de pacientes y segmentos con artefactos de no marcha
-* mantener la documentación de resultados separada del README principal
+* mantener los resultados experimentales detallados en `results/` y dejar el README como mapa de uso del repositorio
 
 ## Comandos mínimos recomendados
 
