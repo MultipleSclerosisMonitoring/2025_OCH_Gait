@@ -1,0 +1,4 @@
+reference,dataset_source,old_label,new_label,start_utc,end_utc,windows,duration_s,models,mean_prob_walking
+05447093A-110,external_all_valid_fp_audit,not_walking,not_walking,2024-05-09 10:26:46+00:00,2024-05-09 10:34:00+00:00,179,434,14,0.7493280636893546
+47046344M-104,external_all_valid_fp_audit,not_walking,not_walking,2024-10-15 07:41:10+00:00,2024-10-15 07:43:24+00:00,63,134,15,0.7258018896508418
+47046344M-104,external_all_valid_fp_audit,not_walking,not_walking,2024-10-15 07:35:38+00:00,2024-10-15 07:37:09+00:00,12,91,6,0.848918676111111

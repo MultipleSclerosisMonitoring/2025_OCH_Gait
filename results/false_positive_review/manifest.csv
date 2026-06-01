@@ -1,0 +1,13 @@
+review_id,reference,dataset_source,old_label,new_label,start_utc,end_utc,start_local,end_local,windows,duration_s,models,mean_prob_walking,extract_status,extract_message,audit_status,audit_path,raw_path,raw_rows,foot_counts,plot_status,plot_message,plot_path
+001,47046344M-104,external_all_valid_fp_audit,not_walking,not_walking,2024-10-15T07:41:10+00:00,2024-10-15T07:43:24+00:00,2024-10-15T09:41:10+02:00,2024-10-15T09:43:24+02:00,63,134.0,15,0.725802,connection_failed,"No se pudo consultar InfluxDB.
+Detalle: ModuleNotFoundError: No module named 'influxdb_client'
+Puedes usar --dry-run para validar la query y la conversión horaria sin abrir conexión al servidor.
+Audit JSON guardado en: salidas_test/false_positive_review/raw/001_47046344M-104_not_walking_to_not_walking.audit.json",connection_failed,salidas_test/false_positive_review/raw/001_47046344M-104_not_walking_to_not_walking.audit.json,salidas_test/false_positive_review/raw/001_47046344M-104_not_walking_to_not_walking.parquet,0,,skipped,sin datos raw,
+002,05447093A-110,external_all_valid_fp_audit,not_walking,not_walking,2024-05-09T10:26:46+00:00,2024-05-09T10:34:00+00:00,2024-05-09T12:26:46+02:00,2024-05-09T12:34:00+02:00,179,434.0,14,0.749328,connection_failed,"No se pudo consultar InfluxDB.
+Detalle: ModuleNotFoundError: No module named 'influxdb_client'
+Puedes usar --dry-run para validar la query y la conversión horaria sin abrir conexión al servidor.
+Audit JSON guardado en: salidas_test/false_positive_review/raw/002_05447093A-110_not_walking_to_not_walking.audit.json",connection_failed,salidas_test/false_positive_review/raw/002_05447093A-110_not_walking_to_not_walking.audit.json,salidas_test/false_positive_review/raw/002_05447093A-110_not_walking_to_not_walking.parquet,0,,skipped,sin datos raw,
+003,47046344M-104,external_all_valid_fp_audit,not_walking,not_walking,2024-10-15T07:35:38+00:00,2024-10-15T07:37:09+00:00,2024-10-15T09:35:38+02:00,2024-10-15T09:37:09+02:00,12,91.0,6,0.848919,connection_failed,"No se pudo consultar InfluxDB.
+Detalle: ModuleNotFoundError: No module named 'influxdb_client'
+Puedes usar --dry-run para validar la query y la conversión horaria sin abrir conexión al servidor.
+Audit JSON guardado en: salidas_test/false_positive_review/raw/003_47046344M-104_not_walking_to_not_walking.audit.json",connection_failed,salidas_test/false_positive_review/raw/003_47046344M-104_not_walking_to_not_walking.audit.json,salidas_test/false_positive_review/raw/003_47046344M-104_not_walking_to_not_walking.parquet,0,,skipped,sin datos raw,

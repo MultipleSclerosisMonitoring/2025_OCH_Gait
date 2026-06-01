@@ -16,6 +16,8 @@ from sklearn.metrics import (
     recall_score,
 )
 
+from gait_analysis.interval_filters import exclude_predictions_by_interval, load_interval_exclusions
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build command-line parser."""
@@ -50,6 +52,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=[1, 2, 3, 4, 5],
         help="Longitudes minimas de bloques consecutivos positivos",
+    )
+    p.add_argument(
+        "--exclude-intervals",
+        default=None,
+        help="CSV con intervalos a excluir antes del barrido temporal.",
     )
     return p
 
@@ -100,7 +107,12 @@ def score_temporal_rule(
     min_run_windows: int,
 ) -> dict[str, float | int]:
     """Compute aggregate metrics for one temporal persistence rule."""
-    y_true = predictions["target"].astype(int)
+    if "target" in predictions.columns:
+        y_true = predictions["target"].astype(int)
+    elif "true_label" in predictions.columns:
+        y_true = predictions["true_label"].map({"not_walking": 0, "walking": 1}).astype(int)
+    else:
+        raise ValueError("Se necesita target o true_label para calcular las metricas.")
     y_pred = apply_temporal_rule(
         predictions,
         threshold=threshold,
@@ -143,7 +155,26 @@ def main() -> None:
     """Run temporal smoothing sweep and save metrics."""
     args = build_parser().parse_args()
     predictions = pd.read_csv(args.input)
+    if args.exclude_intervals:
+        exclusions = load_interval_exclusions(args.exclude_intervals)
+        predictions = exclude_predictions_by_interval(predictions, exclusions)
+    if "center_time" not in predictions.columns and "time_center" in predictions.columns:
+        predictions["center_time"] = predictions["time_center"]
     predictions["center_time"] = pd.to_datetime(predictions["center_time"], utc=True)
+    if "group" not in predictions.columns:
+        required = ["reference", "segment_from_time", "segment_until_time"]
+        missing = [col for col in required if col not in predictions.columns]
+        if missing:
+            raise ValueError(
+                "Se necesita group o las columnas reference/segment_from_time/segment_until_time."
+            )
+        predictions["group"] = (
+            predictions["reference"].astype(str)
+            + "|"
+            + predictions["segment_from_time"].astype(str)
+            + "|"
+            + predictions["segment_until_time"].astype(str)
+        )
 
     rows = []
     for threshold in args.thresholds:

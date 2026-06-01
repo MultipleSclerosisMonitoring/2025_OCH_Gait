@@ -18,6 +18,7 @@ from sklearn.metrics import (
 )
 
 from gait_analysis.predict_walking_sequence import make_block_id
+from gait_analysis.interval_filters import exclude_windows_by_interval, load_interval_exclusions
 from gait_analysis.run_sequence_evaluation import LABEL_MAP, label_time_center, load_ground_truth
 from gait_analysis.tune_sequence_temporal_smoothing import apply_min_run_filter
 
@@ -91,6 +92,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Vuelve a consultar Influx aunque exista el espectrograma intermedio",
     )
+    p.add_argument(
+        "--exclude-intervals",
+        default=None,
+        help=(
+            "CSV con intervalos a excluir de la evaluacion. Debe incluir "
+            "reference/start_utc/end_utc o equivalentes."
+        ),
+    )
     return p
 
 
@@ -160,6 +169,13 @@ def run_prediction(row: pd.Series, args: argparse.Namespace, prediction_dir: Pat
 def select_windows(windows: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
     """Filter configured windows according to scope."""
     selected = windows.copy()
+    if args.exclude_intervals:
+        exclusions = load_interval_exclusions(args.exclude_intervals)
+        selected = exclude_windows_by_interval(
+            selected,
+            exclusions,
+            window_timezone=None,
+        )
     if not args.include_pending:
         selected = selected[selected["use_for_sequence_eval"] == True].copy()
     selected = selected[selected["coverage_status"] == "valid_both_feet"].copy()

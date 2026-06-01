@@ -16,6 +16,8 @@ from sklearn.metrics import (
     recall_score,
 )
 
+from gait_analysis.interval_filters import exclude_predictions_by_interval, load_interval_exclusions
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build command-line parser."""
@@ -37,6 +39,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--start", type=float, default=0.05)
     p.add_argument("--stop", type=float, default=0.95)
     p.add_argument("--step", type=float, default=0.05)
+    p.add_argument(
+        "--exclude-intervals",
+        default=None,
+        help="CSV con intervalos a excluir antes del barrido de umbral.",
+    )
     return p
 
 
@@ -52,7 +59,12 @@ def threshold_values(start: float, stop: float, step: float) -> np.ndarray:
 
 def score_threshold(predictions: pd.DataFrame, threshold: float) -> dict[str, float | int]:
     """Compute metrics for one probability threshold."""
-    y_true = predictions["target"].astype(int)
+    if "target" in predictions.columns:
+        y_true = predictions["target"].astype(int)
+    elif "true_label" in predictions.columns:
+        y_true = predictions["true_label"].map({"not_walking": 0, "walking": 1}).astype(int)
+    else:
+        raise ValueError("Se necesita target o true_label para calcular las metricas.")
     y_pred = (predictions["walking_probability"].astype(float) >= threshold).astype(int)
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
     return {
@@ -90,6 +102,9 @@ def main() -> None:
     """Run threshold sweep and save metrics."""
     args = build_parser().parse_args()
     predictions = pd.read_csv(args.input)
+    if args.exclude_intervals:
+        exclusions = load_interval_exclusions(args.exclude_intervals)
+        predictions = exclude_predictions_by_interval(predictions, exclusions)
     thresholds = threshold_values(args.start, args.stop, args.step)
     results = pd.DataFrame(
         [score_threshold(predictions, threshold) for threshold in thresholds]

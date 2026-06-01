@@ -15,6 +15,7 @@ from sklearn.metrics import (
     recall_score,
 )
 
+from gait_analysis.interval_filters import exclude_windows_by_interval, load_interval_exclusions
 from gait_analysis.run_sequence_evaluation import LABEL_MAP
 from gait_analysis.tune_sequence_temporal_smoothing import apply_min_run_filter
 
@@ -65,13 +66,35 @@ def build_parser() -> argparse.ArgumentParser:
         default="results/stitched_sequence_summary.csv",
         help="CSV de salida con metricas agregadas",
     )
+    p.add_argument(
+        "--exclude-intervals",
+        default=None,
+        help="CSV con intervalos a excluir antes de construir la secuencia.",
+    )
+    p.add_argument(
+        "--timezone",
+        default="UTC",
+        help="Zona horaria usada por el CSV de ventanas si no viene con zona.",
+    )
     return p
 
 
-def load_selected_segments(windows_path: Path, scope: str) -> pd.DataFrame:
+def filter_selected_segments(
+    windows: pd.DataFrame,
+    scope: str,
+    exclude_intervals: str | None,
+    timezone: str,
+) -> pd.DataFrame:
     """Load configured segments and keep the requested evaluation scope."""
-    windows = pd.read_csv(windows_path)
-    selected = windows[windows["use_for_sequence_eval"] == True].copy()
+    selected = windows.copy()
+    if exclude_intervals:
+        exclusions = load_interval_exclusions(exclude_intervals)
+        selected = exclude_windows_by_interval(
+            selected,
+            exclusions,
+            window_timezone=None if timezone.upper() == "UTC" else timezone,
+        )
+    selected = selected[selected["use_for_sequence_eval"] == True].copy()
     if scope == "same_patient":
         selected = selected[selected["seen_patient"] == True].copy()
     elif scope == "new_patient":
@@ -176,7 +199,13 @@ def score_predictions(stitched: pd.DataFrame) -> dict[str, float | int]:
 def main() -> None:
     """Build stitched sequence outputs and summary metrics."""
     args = build_parser().parse_args()
-    selected = load_selected_segments(Path(args.windows), scope=args.scope)
+    windows = pd.read_csv(args.windows)
+    selected = filter_selected_segments(
+        windows,
+        scope=args.scope,
+        exclude_intervals=args.exclude_intervals,
+        timezone=args.timezone,
+    )
     predictions = pd.read_csv(args.predictions)
     stitched = build_stitched_sequence(predictions, selected)
 
