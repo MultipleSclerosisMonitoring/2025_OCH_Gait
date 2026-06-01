@@ -115,3 +115,11 @@ Conclusión práctica:
 * RF y XGBoost son más conservadores y detectan menos `walking`
 
 La tabla completa vive en `results/sequence_model_external_comparison_summary.md`.
+
+En el transformer también se probó una variación de arquitectura:
+
+* 4 cabezas mejoró claramente frente a 2
+* 8 cabezas apenas aportó mejora adicional
+* `pooling=mean` funcionó mejor que `pooling=center` en la validación interna
+
+En la práctica, el detalle de pooling fue más útil que seguir aumentando el número de cabezas.

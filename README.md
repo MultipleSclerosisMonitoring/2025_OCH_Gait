@@ -666,6 +666,14 @@ Resumen de esa comparación:
 
 La tabla completa y los ficheros de evaluación quedan en `results/sequence_model_external_comparison_summary.md`.
 
+Además, se hizo un barrido pequeño de arquitectura en el transformer:
+
+* `nhead=4` rindió mejor que `nhead=2`
+* `nhead=8` apenas mejoró frente a `nhead=4`
+* `pooling=mean` dio mejores métricas internas que `pooling=center`
+
+La lectura práctica es que el detalle de pooling mueve más la aguja que seguir subiendo cabezas.
+
 ### Evaluación del modelo clásico final
 
 La evaluación final reconstruye una validación por bloques temporales para estimar comportamiento fuera de muestra.
