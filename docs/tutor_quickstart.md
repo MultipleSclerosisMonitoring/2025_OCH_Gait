@@ -94,3 +94,24 @@ No interpretar resultados del modelo si antes no existe al menos uno de estos fi
 ```
 
 Así se puede distinguir entre un problema de modelo y un problema previo de extracción, fechas, cobertura o conexión.
+
+## 6. Baseline actual
+
+La comparación externa de referencia del repositorio usa las ventanas fijadas en `experiment_configs/sequence_evaluation_windows.csv`.
+
+Resumen operativo:
+
+| Modelo | F1 walking | FP |
+| --- | ---: | ---: |
+| Random Forest | 0.0406 | 181 |
+| XGBoost | 0.0319 | 173 |
+| CatBoost | 0.0481 | 434 |
+| Transformer | 0.0899 | 81 |
+
+Conclusión práctica:
+
+* el transformer es el baseline actual para la comparación externa
+* CatBoost recupera más positivos, pero con demasiados falsos positivos
+* RF y XGBoost son más conservadores y detectan menos `walking`
+
+La tabla completa vive en `results/sequence_model_external_comparison_summary.md`.
