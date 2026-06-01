@@ -1,0 +1,3 @@
+reference,seen_patient,expected_content,fp_runs,fp_windows,mean_probability,max_probability
+05447093A-110,False,not_walking,14,179,0.7493280636893546,0.99315107
+47046344M-104,True,not_walking,21,75,0.7609781143537758,0.9918216
