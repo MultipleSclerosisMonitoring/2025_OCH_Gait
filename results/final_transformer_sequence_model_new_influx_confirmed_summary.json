@@ -1,0 +1,69 @@
+{
+  "input": "salidas_test/new_influx_confirmed_spectrograms/transformer_sequence_dataset_len9_new_influx_confirmed.npz",
+  "output": "models/final_transformer_sequence_model_new_influx_confirmed.pt",
+  "rows": 16583,
+  "sequence_shape": [
+    16583,
+    9,
+    72
+  ],
+  "feature_columns": 72,
+  "class_counts": {
+    "not_walking": 8824,
+    "walking": 7759
+  },
+  "references": {
+    "02548893X-118": 55,
+    "04845288Q-121": 426,
+    "05447093A-110": 475,
+    "330034-32": 198,
+    "47046344M-104": 584,
+    "54217882M-109": 161,
+    "663495-44": 71,
+    "77370299R-115": 408,
+    "AAMALMHUG057-66": 397,
+    "ACL1998-96": 4689,
+    "AEMDHUG060-70": 1135,
+    "AGCHUG064-10": 2165,
+    "AMGHUG014-3": 478,
+    "CHIHUG033-15": 203,
+    "IECHUG029-9": 313,
+    "JOM250427-105": 481,
+    "JOM250429-103": 274,
+    "LFCMHUG070-78": 149,
+    "LFP1994-120": 48,
+    "MGM-202406-79": 753,
+    "TABUENCA01-45": 1230,
+    "VCLHUG026-16": 895,
+    "VLGHUG049-29": 594,
+    "X8439657Z-23": 401
+  },
+  "train_loss": 0.23972219738822717,
+  "epochs_used": 80,
+  "train_metrics": {
+    "accuracy": 0.939636977627691,
+    "precision_walking": 0.9194389275074478,
+    "recall_walking": 0.9546333290372471,
+    "f1_walking": 0.9367056591843187
+  },
+  "train_probability_mean": 0.4740942418575287,
+  "config": {
+    "epochs": 80,
+    "batch_size": 64,
+    "learning_rate": 0.001,
+    "d_model": 16,
+    "nhead": 4,
+    "num_layers": 1,
+    "dim_feedforward": 32,
+    "dropout": 0.3,
+    "patience": 12,
+    "seed": 42,
+    "class_weight_mode": "none",
+    "pooling": "center",
+    "validation_mode": "none",
+    "label_smoothing": 0.0,
+    "weight_decay": 0.001,
+    "embargo_seconds": 0.0
+  },
+  "note": "M\u00e9tricas calculadas sobre el conjunto completo de entrenamiento; usar solo como comprobaci\u00f3n de ajuste, no como generalizaci\u00f3n."
+}

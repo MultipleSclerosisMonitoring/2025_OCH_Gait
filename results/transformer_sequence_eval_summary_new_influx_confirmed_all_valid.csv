@@ -1,0 +1,2 @@
+scope,segments,threshold,rows,accuracy,precision_walking,recall_walking,f1_walking,tn,fp,fn,tp
+all_valid,5,0.43,780,0.6397435897435897,0.014035087719298246,1.0,0.02768166089965398,495,281,0,4
