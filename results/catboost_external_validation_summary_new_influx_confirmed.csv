@@ -1,0 +1,2 @@
+scope,rows,threshold_best_f1,accuracy_best,precision_best,recall_best,f1_best,tn_best,fp_best,fn_best,tp_best,smooth_threshold_best_f1,smooth_min_run_best_f1,smooth_accuracy_best,smooth_precision_best,smooth_recall_best,smooth_f1_best
+all_valid,820,0.36,0.4865853658536585,0.025522041763341066,0.9166666666666666,0.04966139954853273,388,420,1,11,0.35,5,0.6597560975609756,0.03806228373702422,0.9166666666666666,0.07308970099667775

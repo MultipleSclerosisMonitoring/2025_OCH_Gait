@@ -1,0 +1,10 @@
+{
+  "input": "salidas_test/new_influx_confirmed_spectrograms/main_binary_with_new_influx_confirmed_no_transition_5s.parquet",
+  "output": "models/final_catboost_model_new_influx_confirmed.joblib",
+  "rows": 22887,
+  "features": 72,
+  "class_counts": {
+    "not_walking": 13085,
+    "walking": 9802
+  }
+}
