@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -8,7 +9,21 @@ try:
 except ModuleNotFoundError:
     yaml = None
 
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:
+    load_dotenv = None
+
 from gait_analysis.models import AppConfig, InfluxConfig, SpectrogramConfig
+
+# Carga las variables de entorno desde un fichero .env en la raiz del
+# repositorio (si existe), siguiendo la recomendacion del tutor de no
+# guardar credenciales ni siquiera como placeholder en el .config.yaml
+# versionado. .env esta en .gitignore y nunca debe subirse a git; ver
+# .env.example para la plantilla de las variables esperadas.
+if load_dotenv is not None:
+    _dotenv_path = Path(__file__).resolve().parent.parent / ".env"
+    load_dotenv(dotenv_path=_dotenv_path)
 
 
 def _parse_scalar(value: str) -> Any:
@@ -74,6 +89,39 @@ def _load_simple_yaml(path: Path) -> Dict[str, Any]:
     return root
 
 
+def _resolve_secret(value: Any, env_var: str) -> str:
+    """Resolve a config value that may reference an environment variable.
+
+    Supports the placeholder syntax ``${VAR_NAME}`` in the YAML file, so
+    that credentials (el token de InfluxDB) y datos identificativos del
+    servidor (URL/IP, organización) nunca necesiten estar en texto plano
+    en un fichero versionado. When the raw value is exactly ``${env_var}``
+    it is replaced by the current value of that environment variable.
+
+    Args:
+        value: Raw value read from the YAML file (may be a placeholder).
+        env_var: Name of the environment variable to resolve against.
+
+    Returns:
+        The resolved value.
+
+    Raises:
+        ValueError: If the value is a placeholder but the environment
+            variable is not set (or is empty).
+    """
+    placeholder = f"${{{env_var}}}"
+    if isinstance(value, str) and value.strip() == placeholder:
+        resolved = os.environ.get(env_var)
+        if not resolved:
+            raise ValueError(
+                f"El fichero de configuración espera la variable de entorno "
+                f"{env_var}, pero no está definida. Expórtala antes de "
+                f"ejecutar, p. ej.: export {env_var}=\"...\""
+            )
+        return resolved
+    return value
+
+
 class ConfigLoader:
     """Loads YAML configuration from a file."""
 
@@ -116,10 +164,10 @@ class ConfigLoader:
             )
 
         influx = InfluxConfig(
-            url=influx_raw["url"],
-            org=influx_raw["org"],
-            bucket=influx_raw["bucket"],
-            token=influx_raw["token"],
+            url=_resolve_secret(influx_raw["url"], "INFLUXDB_URL"),
+            org=_resolve_secret(influx_raw["org"], "INFLUXDB_ORG"),
+            bucket=_resolve_secret(influx_raw["bucket"], "INFLUXDB_BUCKET"),
+            token=_resolve_secret(influx_raw["token"], "INFLUXDB_TOKEN"),
             verify_ssl=bool(influx_raw.get("verify_ssl", False)),
             timeout=int(influx_raw.get("timeout", 10000)),
         )

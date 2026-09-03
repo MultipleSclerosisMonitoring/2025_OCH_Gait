@@ -48,6 +48,44 @@ Debe existir un fichero `.config.yaml` en la raíz del proyecto. Ahí se definen
 * pies disponibles
 * parámetros del espectrograma
 
+**Credenciales y datos del servidor de InfluxDB.** Los campos `bucket`, `token`, `org` y `url`
+de `.config.yaml` (y de los ficheros de `experiment_configs/config_window_*.yaml`)
+no contienen sus valores reales en texto plano, sino los placeholders
+`${INFLUXDB_BUCKET}`, `${INFLUXDB_TOKEN}`, `${INFLUXDB_ORG}` y `${INFLUXDB_URL}`, que `ConfigLoader`
+resuelve leyendo las variables de entorno del mismo nombre.
+
+La forma recomendada de definirlas es mediante un fichero `.env` en la raíz
+del proyecto (nunca versionado; ya está en `.gitignore`), que `ConfigLoader`
+carga automáticamente al arrancar con [`python-dotenv`](https://pypi.org/project/python-dotenv/):
+
+```bash
+cp .env.example .env
+# edita .env y rellena los cuatro valores reales
+```
+
+```
+INFLUXDB_TOKEN=...
+INFLUXDB_ORG=...
+INFLUXDB_URL=https://...
+INFLUXDB_BUCKET=...
+```
+
+Alternativamente, también puedes exportarlas manualmente en la sesión de shell
+(`ConfigLoader` las resuelve igual, `.env` simplemente evita tener que repetir
+esto cada vez):
+
+```bash
+export INFLUXDB_TOKEN="..."
+export INFLUXDB_ORG="..."
+export INFLUXDB_URL="https://..."
+export INFLUXDB_BUCKET="..."
+```
+
+Si alguna variable no está definida (ni en `.env` ni exportada), `ConfigLoader` lanza
+un `ValueError` explicando qué falta. Ninguno de estos cuatro valores reales debe
+añadirse de nuevo a ningún fichero versionado en el repositorio (ni en `.config.yaml`,
+ni directamente en `.env` sin que esté ignorado por git).
+
 La configuración actual procesa:
 
 * acelerómetro: `Ax`, `Ay`, `Az`
