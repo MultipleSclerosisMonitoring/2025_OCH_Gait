@@ -26,6 +26,9 @@ jobs:
       - name: Install Poetry
         run: pip install poetry
 
+      - name: Sync poetry.lock con pyproject.toml
+        run: poetry lock --no-update
+
       - name: Install project dependencies
         run: poetry install --no-interaction
 
