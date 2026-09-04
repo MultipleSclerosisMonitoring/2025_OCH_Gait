@@ -22,6 +22,8 @@ El proyecto cubre estos casos de uso:
 
 La lógica principal está en el paquete `gait_analysis/`.
 
+Documentación técnica completa (arquitectura y referencia de cada módulo), generada con Sphinx: [https://multiplesclerosismonitoring.github.io/2025_OCH_Gait/](https://multiplesclerosismonitoring.github.io/2025_OCH_Gait/).
+
 ## Entorno
 
 El proyecto usa Poetry para gestionar dependencias.
