@@ -1,8 +1,8 @@
 influxdb:
-  bucket: ***REMOVED***
-  org: ***REMOVED***
-  token: ***REMOVED***
-  url: ***REMOVED***/
+  bucket: ${INFLUXDB_BUCKET}
+  org: ${INFLUXDB_ORG}
+  token: ${INFLUXDB_TOKEN}
+  url: ${INFLUXDB_URL}
   verify_ssl: false
   timeout: 900000
 Location:
