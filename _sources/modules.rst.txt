@@ -72,3 +72,19 @@ gait_analysis.time_utils
    :members:
    :undoc-members:
    :show-inheritance:
+
+gait_analysis.doctor
+--------------------
+
+.. automodule:: gait_analysis.doctor
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+gait_analysis.audit_influx_window
+---------------------------------
+
+.. automodule:: gait_analysis.audit_influx_window
+   :members:
+   :undoc-members:
+   :show-inheritance:

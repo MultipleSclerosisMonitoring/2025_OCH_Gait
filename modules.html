@@ -1055,6 +1055,74 @@ time so file names remain stable and human-readable.</p>
 </dd></dl>
 
 </section>
+<section id="module-gait_analysis.doctor">
+<span id="gait-analysis-doctor"></span><h2>gait_analysis.doctor<a class="headerlink" href="#module-gait_analysis.doctor" title="Link to this heading">¶</a></h2>
+<p>One-shot diagnostic command for InfluxDB extraction windows.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="gait_analysis.doctor.build_parser">
+<span class="sig-prename descclassname"><span class="pre">gait_analysis.doctor.</span></span><span class="sig-name descname"><span class="pre">build_parser</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ArgumentParser</span></span></span><a class="headerlink" href="#gait_analysis.doctor.build_parser" title="Link to this definition">¶</a></dt>
+<dd><p>Build command-line parser.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gait_analysis.doctor.git_commit">
+<span class="sig-prename descclassname"><span class="pre">gait_analysis.doctor.</span></span><span class="sig-name descname"><span class="pre">git_commit</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#gait_analysis.doctor.git_commit" title="Link to this definition">¶</a></dt>
+<dd><p>Return the current git commit if available.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gait_analysis.doctor.json_default">
+<span class="sig-prename descclassname"><span class="pre">gait_analysis.doctor.</span></span><span class="sig-name descname"><span class="pre">json_default</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#gait_analysis.doctor.json_default" title="Link to this definition">¶</a></dt>
+<dd><p>Serialize timestamp-like values.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gait_analysis.doctor.main">
+<span class="sig-prename descclassname"><span class="pre">gait_analysis.doctor.</span></span><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#gait_analysis.doctor.main" title="Link to this definition">¶</a></dt>
+<dd><p>Run the doctor diagnostic.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gait_analysis.doctor.recommendation">
+<span class="sig-prename descclassname"><span class="pre">gait_analysis.doctor.</span></span><span class="sig-name descname"><span class="pre">recommendation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">status</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">reference</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">from_time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">until</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#gait_analysis.doctor.recommendation" title="Link to this definition">¶</a></dt>
+<dd><p>Return a practical next step for a status.</p>
+</dd></dl>
+
+</section>
+<section id="module-gait_analysis.audit_influx_window">
+<span id="gait-analysis-audit-influx-window"></span><h2>gait_analysis.audit_influx_window<a class="headerlink" href="#module-gait_analysis.audit_influx_window" title="Link to this heading">¶</a></h2>
+<p>Audit InfluxDB coverage for one reference and time window.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="gait_analysis.audit_influx_window.build_flux">
+<span class="sig-prename descclassname"><span class="pre">gait_analysis.audit_influx_window.</span></span><span class="sig-name descname"><span class="pre">build_flux</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reference</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">foot</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start_iso</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_iso</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#gait_analysis.audit_influx_window.build_flux" title="Link to this definition">¶</a></dt>
+<dd><p>Build a foot-specific Flux query.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gait_analysis.audit_influx_window.build_parser">
+<span class="sig-prename descclassname"><span class="pre">gait_analysis.audit_influx_window.</span></span><span class="sig-name descname"><span class="pre">build_parser</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ArgumentParser</span></span></span><a class="headerlink" href="#gait_analysis.audit_influx_window.build_parser" title="Link to this definition">¶</a></dt>
+<dd><p>Build command-line parser.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gait_analysis.audit_influx_window.compute_status">
+<span class="sig-prename descclassname"><span class="pre">gait_analysis.audit_influx_window.</span></span><span class="sig-name descname"><span class="pre">compute_status</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">foot_summaries</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feet</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Timestamp</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Timestamp</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#gait_analysis.audit_influx_window.compute_status" title="Link to this definition">¶</a></dt>
+<dd><p>Classify coverage status and common temporal interval.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gait_analysis.audit_influx_window.main">
+<span class="sig-prename descclassname"><span class="pre">gait_analysis.audit_influx_window.</span></span><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#gait_analysis.audit_influx_window.main" title="Link to this definition">¶</a></dt>
+<dd><p>Run the audit.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gait_analysis.audit_influx_window.summarize_foot">
+<span class="sig-prename descclassname"><span class="pre">gait_analysis.audit_influx_window.</span></span><span class="sig-name descname"><span class="pre">summarize_foot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">foot</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#gait_analysis.audit_influx_window.summarize_foot" title="Link to this definition">¶</a></dt>
+<dd><p>Return row count and temporal bounds for one foot DataFrame.</p>
+</dd></dl>
+
+</section>
 </section>
 
 
@@ -1096,6 +1164,8 @@ time so file names remain stable and human-readable.</p>
 <li class="toctree-l2"><a class="reference internal" href="#module-gait_analysis.resampling">gait_analysis.resampling</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-gait_analysis.spectrum">gait_analysis.spectrum</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-gait_analysis.time_utils">gait_analysis.time_utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-gait_analysis.doctor">gait_analysis.doctor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-gait_analysis.audit_influx_window">gait_analysis.audit_influx_window</a></li>
 </ul>
 </li>
 </ul>

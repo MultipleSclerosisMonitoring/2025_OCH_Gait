@@ -43,6 +43,7 @@
  | <a href="#F"><strong>F</strong></a>
  | <a href="#G"><strong>G</strong></a>
  | <a href="#I"><strong>I</strong></a>
+ | <a href="#J"><strong>J</strong></a>
  | <a href="#L"><strong>L</strong></a>
  | <a href="#M"><strong>M</strong></a>
  | <a href="#O"><strong>O</strong></a>
@@ -69,10 +70,18 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules.html#gait_analysis.models.InfluxConfig.bucket">bucket (gait_analysis.models.InfluxConfig attribute)</a>, <a href="modules.html#id17">[1]</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules.html#gait_analysis.flux.FluxQueryBuilder.build">build() (gait_analysis.flux.FluxQueryBuilder class method)</a>
 </li>
+      <li><a href="modules.html#gait_analysis.audit_influx_window.build_flux">build_flux() (in module gait_analysis.audit_influx_window)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="modules.html#gait_analysis.audit_influx_window.build_parser">build_parser() (in module gait_analysis.audit_influx_window)</a>
+
+      <ul>
+        <li><a href="modules.html#gait_analysis.doctor.build_parser">(in module gait_analysis.doctor)</a>
+</li>
+      </ul></li>
       <li><a href="modules.html#gait_analysis.spectrum.ParquetRowBuilder.build_row">build_row() (gait_analysis.spectrum.ParquetRowBuilder static method)</a>
 </li>
   </ul></td>
@@ -93,9 +102,11 @@
         <li><a href="modules.html#gait_analysis.influx_service.InfluxService.close">(gait_analysis.influx_service.InfluxService method)</a>
 </li>
       </ul></li>
+      <li><a href="modules.html#gait_analysis.spectrum.PowerSpectrumEngine.compute">compute() (gait_analysis.spectrum.PowerSpectrumEngine method)</a>
+</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="modules.html#gait_analysis.spectrum.PowerSpectrumEngine.compute">compute() (gait_analysis.spectrum.PowerSpectrumEngine method)</a>
+      <li><a href="modules.html#gait_analysis.audit_influx_window.compute_status">compute_status() (in module gait_analysis.audit_influx_window)</a>
 </li>
       <li><a href="modules.html#gait_analysis.models.CliArgs.config">config (gait_analysis.models.CliArgs attribute)</a>, <a href="modules.html#id6">[1]</a>
 </li>
@@ -167,6 +178,13 @@
 </li>
       </ul></li>
       <li>
+    gait_analysis.audit_influx_window
+
+      <ul>
+        <li><a href="modules.html#module-gait_analysis.audit_influx_window">module</a>
+</li>
+      </ul></li>
+      <li>
     gait_analysis.cli
 
       <ul>
@@ -181,12 +199,21 @@
 </li>
       </ul></li>
       <li>
+    gait_analysis.doctor
+
+      <ul>
+        <li><a href="modules.html#module-gait_analysis.doctor">module</a>
+</li>
+      </ul></li>
+      <li>
     gait_analysis.flux
 
       <ul>
         <li><a href="modules.html#module-gait_analysis.flux">module</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     gait_analysis.influx_service
 
@@ -194,8 +221,6 @@
         <li><a href="modules.html#module-gait_analysis.influx_service">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     gait_analysis.models
 
@@ -226,6 +251,8 @@
       </ul></li>
       <li><a href="modules.html#gait_analysis.time_utils.TimeProcessor.generate_window_centers">generate_window_centers() (gait_analysis.time_utils.TimeProcessor static method)</a>
 </li>
+      <li><a href="modules.html#gait_analysis.doctor.git_commit">git_commit() (in module gait_analysis.doctor)</a>
+</li>
   </ul></td>
 </tr></table>
 
@@ -243,6 +270,14 @@
   </ul></td>
 </tr></table>
 
+<h2 id="J">J</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="modules.html#gait_analysis.doctor.json_default">json_default() (in module gait_analysis.doctor)</a>
+</li>
+  </ul></td>
+</tr></table>
+
 <h2 id="L">L</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
@@ -255,7 +290,13 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules.html#gait_analysis.app.main">main() (in module gait_analysis.app)</a>
+
+      <ul>
+        <li><a href="modules.html#gait_analysis.audit_influx_window.main">(in module gait_analysis.audit_influx_window)</a>
 </li>
+        <li><a href="modules.html#gait_analysis.doctor.main">(in module gait_analysis.doctor)</a>
+</li>
+      </ul></li>
       <li><a href="modules.html#gait_analysis.models.CliArgs.max_interpolate_gap_s">max_interpolate_gap_s (gait_analysis.models.CliArgs attribute)</a>
 
       <ul>
@@ -276,9 +317,13 @@
       <ul>
         <li><a href="modules.html#module-gait_analysis.app">gait_analysis.app</a>
 </li>
+        <li><a href="modules.html#module-gait_analysis.audit_influx_window">gait_analysis.audit_influx_window</a>
+</li>
         <li><a href="modules.html#module-gait_analysis.cli">gait_analysis.cli</a>
 </li>
         <li><a href="modules.html#module-gait_analysis.config">gait_analysis.config</a>
+</li>
+        <li><a href="modules.html#module-gait_analysis.doctor">gait_analysis.doctor</a>
 </li>
         <li><a href="modules.html#module-gait_analysis.flux">gait_analysis.flux</a>
 </li>
@@ -341,6 +386,8 @@
 <h2 id="R">R</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="modules.html#gait_analysis.doctor.recommendation">recommendation() (in module gait_analysis.doctor)</a>
+</li>
       <li><a href="modules.html#gait_analysis.models.AppConfig.ref_tag">ref_tag (gait_analysis.models.AppConfig attribute)</a>, <a href="modules.html#id3">[1]</a>
 </li>
       <li><a href="modules.html#gait_analysis.models.CliArgs.reference">reference (gait_analysis.models.CliArgs attribute)</a>, <a href="modules.html#id14">[1]</a>
@@ -369,11 +416,13 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules.html#gait_analysis.models.SpectrogramConfig.signals">signals (gait_analysis.models.SpectrogramConfig attribute)</a>, <a href="modules.html#id31">[1]</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules.html#gait_analysis.models.AppConfig.spectrogram">spectrogram (gait_analysis.models.AppConfig attribute)</a>, <a href="modules.html#id4">[1]</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules.html#gait_analysis.models.SpectrogramConfig">SpectrogramConfig (class in gait_analysis.models)</a>
+</li>
+      <li><a href="modules.html#gait_analysis.audit_influx_window.summarize_foot">summarize_foot() (in module gait_analysis.audit_influx_window)</a>
 </li>
   </ul></td>
 </tr></table>
